@@ -5,12 +5,7 @@
   "dependencies": [
     "nlohmann-json",
     "zlib",
-    "fmt",
-    "spdlog",
-    {
-      "name": "imgui",
-      "features": ["docking-experimental"]
-    }
+    "fmt"
   ],
-  "builtin-baseline": "e20240115"
+  "builtin-baseline": "f6d0b0b13c8e5d4f8b5a5c8e8f3c3d6f1b1e5a5c"
 }
