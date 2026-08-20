@@ -1,4 +1,4 @@
-# GitHub Actions CI/CD 配置
+# GitHub Actions CI/CD - Minimal & Battle-Tested
 
 name: CNCS CI/CD
 
@@ -15,8 +15,11 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 60
-    
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+
     strategy:
       matrix:
         configuration: [Debug, Release]
@@ -27,24 +30,18 @@ jobs:
             cmake_args: "-DCMAKE_BUILD_TYPE=Release"
 
     steps:
-    - name: Checkout 代码
+    - name: Checkout
       uses: actions/checkout@v4
       with:
         submodules: recursive
         fetch-depth: 0
 
-    - name: 设置 MSVC 环境
+    - name: Setup MSBuild (uses pre-installed VS 2022)
       uses: microsoft/setup-msbuild@v2
       with:
         vs-version: '2022'
 
-    - name: 验证 MSBuild 可用
-      run: |
-        echo "MSBuild path: $(which msbuild || where msbuild)"
-        msbuild -version
-      shell: pwsh
-
-    - name: 缓存 vcpkg
+    - name: Cache vcpkg
       uses: actions/cache@v4
       with:
         path: |
@@ -54,35 +51,35 @@ jobs:
         restore-keys: |
           vcpkg-${{ runner.os }}-
 
-    - name: 安装 vcpkg
+    - name: Setup vcpkg
       if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
         git clone https://github.com/microsoft/vcpkg.git
         ./vcpkg/bootstrap-vcpkg.bat
 
-    - name: 安装依赖
+    - name: Install deps
       run: |
         ./vcpkg/vcpkg.exe install --triplet x64-windows --feature-flags=manifests
 
-    - name: 配置 CMake
+    - name: Configure CMake
       run: |
-        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 
-    - name: 构建项目
+    - name: Build
       run: |
         cmake --build build --config ${{ matrix.configuration }} --parallel
 
-    - name: 运行测试
+    - name: Test
       if: matrix.configuration == 'Debug'
       run: |
         ctest --test-dir build --output-on-failure -C Debug
 
-    - name: 构建驱动
+    - name: Build driver
       run: |
         cd driver
         powershell -ExecutionPolicy Bypass -File build_driver.ps1 -Configuration ${{ matrix.configuration }} -TestSign
 
-    - name: 上传构建产物
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: CNCS-${{ matrix.configuration }}
@@ -91,7 +88,7 @@ jobs:
           driver/x64/${{ matrix.configuration }}/CNCS_drv.sys
         retention-days: 30
 
-    - name: 代码格式检查
+    - name: Format check
       run: |
         clang-format --dry-run --Werror $(find src -name "*.cpp" -o -name "*.hpp" -o -name "*.h" -o -name "*.c")
 
@@ -99,24 +96,25 @@ jobs:
     needs: build
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
     steps:
-    - name: 下载构建产物
-      uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v4
       with:
         pattern: CNCS-*
         merge-multiple: true
         path: artifacts
 
-    - name: 创建发布包
+    - name: Package
       run: |
         mkdir release
         copy artifacts\bin\Release\CNCS.exe release\
         copy artifacts\driver\x64\Release\CNCS_drv.sys release\
-        # 复制地图文件
         mkdir release\maps
         copy src\embedded\*.m2 release\maps\
 
-    - name: 创建 Release
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: release/*
