@@ -1,0 +1,16 @@
+{
+  "name": "cncs",
+  "version": "1.0.0",
+  "description": "CS2 External Overlay with ESP, Aimbot, Triggerbot",
+  "dependencies": [
+    "nlohmann-json",
+    "zlib",
+    "fmt",
+    "spdlog",
+    {
+      "name": "imgui",
+      "features": ["docking-experimental"]
+    }
+  ],
+  "builtin-baseline": "e20240115"
+}

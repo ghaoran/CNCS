@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <RootNamespace>CNCS_drv</RootNamespace>
+    <!--
+      WindowsTargetPlatformVersion 必须为完整版本号（如 10.0.28000.0）：
+      WDK 用它的值推导 $(WDKBuildFolder)（Build\<版本>\ 目录名），
+      写 "10.0" 会导致 WDK 的 props 全部按错误路径跳过、找不到 ntddk.h。
+    -->
+    <WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion>
+    <!--
+      覆盖 WDKContentRoot：本机注册表 (HKLM\SOFTWARE\Microsoft\...KitsRoot10)
+      指向 C:\Program Files\Windows Kits\10\（仅 SDK，无 WDK），导致
+      WindowsDriver.*.props 全部无法加载、找不到 ntddk.h/wdmsec.lib。
+      这里显式回退到 32 位注册表视图（WDK 实际安装位置）。
+      用户仍可通过命令行 -p:WDKContentRoot=... 覆盖。
+    -->
+    <WDKContentRoot Condition="'$(WDKContentRoot)'==''">$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots@KitsRoot10)</WDKContentRoot>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <TargetName>CNCS_drv</TargetName>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)src;C:\Program Files (x86)\Windows Kits\10\Include\10.0.28000.0\km;C:\Program Files (x86)\Windows Kits\10\Include\10.0.28000.0\shared;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_AMD64_;AMD64;NT_PROCESSOR_X64=8664;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>wdmsec.lib;ntoskrnl.lib;hal.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Program Files (x86)\Windows Kits\10\Lib\10.0.28000.0\km\x64;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.28000.0\ucrt\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreAllDefaultLibraries>true</IgnoreAllDefaultLibraries>
+      <SubSystem>Native</SubSystem>
+      <Driver>Driver</Driver>
+      <EntryPoint>wmainCRTStartup</EntryPoint>
+    </Link>
+    <!-- 新版 signtool 必须显式指定文件摘要算法（/fd），否则签名报错 -->
+    <DriverSign>
+      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
+    </DriverSign>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="CNCS_drv.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="$(SolutionDir)src\ioctl_defs.h" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

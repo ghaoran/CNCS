@@ -1,0 +1,275 @@
+# CNCS - CS2 External Overlay
+# Unified CMake build system replacing VS Solution + Zig build script
+# Requires: CMake 3.25+, Visual Studio 2022 (MSVC v143+), vcpkg
+
+cmake_minimum_required(VERSION 3.25)
+project(CNCS
+    VERSION 1.0.0
+    LANGUAGES CXX C
+    DESCRIPTION "CS2 External Overlay with ESP, Aimbot, Triggerbot"
+)
+
+# -----------------------------------------------------------------------------
+# Policies & Standards
+# -----------------------------------------------------------------------------
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# MSVC-specific settings
+if(MSVC)
+    # Warning level 4 (equivalent to /W4) but suppress noisy ones
+    add_compile_options(/W4 /permissive- /Zc:__cplusplus /Zc:inline /Zc:strictStrings /Zc:throwingNew)
+    # Disable specific warnings that are noisy in third-party code
+    add_compile_options(
+        /wd4201   # nameless struct/union (common in Windows headers)
+        /wd4244   # conversion loss of data (intentional in math)
+        /wd4267   # size_t to smaller type (intentional)
+        /wd4996   # deprecated CRT functions (we use secure versions where needed)
+        /wd4820   # padding added (struct alignment)
+        /wd4710   # function not inlined
+        /wd4711   # function selected for inlining
+        /wd5045   # Spectre mitigation (we handle separately)
+    )
+    # Security hardening
+    add_compile_options(/GS /guard:cf /sdl /DYNAMICBASE /NXCOMPAT)
+    add_link_options(/DYNAMICBASE /NXCOMPAT /GUARD:CF)
+endif()
+
+# -----------------------------------------------------------------------------
+# Build Configurations
+# -----------------------------------------------------------------------------
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+
+# Debug: /MDd = debug CRT (defines _DEBUG automatically), /Zi = PDB, /Ob0 = no inline, /Od = no opt, /RTC1 = runtime checks
+set(CMAKE_CXX_FLAGS_DEBUG "/MDd /Zi /Ob0 /Od /RTC1 /D_DEBUG")
+
+# Release: /MD = release CRT, /O2 = max speed, /Ob2 = inline any, /GL = LTCG, /DNDEBUG = no asserts
+set(CMAKE_CXX_FLAGS_RELEASE "/MD /O2 /Ob2 /GL /DNDEBUG")
+
+# Whole Program Optimization for Release
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+
+# Output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}")
+
+# -----------------------------------------------------------------------------
+# vcpkg Integration
+# -----------------------------------------------------------------------------
+# Expected vcpkg packages:
+#   - imgui[docking-experimental,opengl3-binding] (we use dx11 backend)
+#   - nlohmann-json
+#   - zlib
+#   - spdlog (for future logging migration)
+#   - fmt (for structured logging)
+#   - catch2 (for unit tests)
+
+# Toolchain file should be passed via -DCMAKE_TOOLCHAIN_FILE=.../vcpkg.cmake
+if(NOT DEFINED ENV{VCPKG_ROOT} AND NOT CMAKE_TOOLCHAIN_FILE)
+    message(WARNING "vcpkg not detected. Set VCPKG_ROOT or pass -DCMAKE_TOOLCHAIN_FILE")
+endif()
+
+# -----------------------------------------------------------------------------
+# Source File Groups (for IDE organization)
+# -----------------------------------------------------------------------------
+file(GLOB_RECURSE CNCS_SOURCES
+    "src/*.cpp"
+    "src/*.c"
+    "src/**/*.cpp"
+    "src/**/*.c"
+)
+
+file(GLOB_RECURSE CNCS_HEADERS
+    "src/*.hpp"
+    "src/*.h"
+    "src/**/*.hpp"
+    "src/**/*.h"
+)
+
+source_group("Source Files" FILES ${CNCS_SOURCES})
+source_group("Header Files" FILES ${CNCS_HEADERS})
+
+# -----------------------------------------------------------------------------
+# Include Directories
+# -----------------------------------------------------------------------------
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include/AsyncLogger
+)
+
+# -----------------------------------------------------------------------------
+# Precompiled Headers
+# -----------------------------------------------------------------------------
+# Core PCH: minimal, stable headers used everywhere
+set(PCH_CORE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.hpp")
+set(PCH_CORE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.cpp")
+
+# Module PCHs (optional, for heavy modules)
+set(PCH_ENGINE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_engine.hpp")
+set(PCH_GUI_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_gui.hpp")
+
+# -----------------------------------------------------------------------------
+# External Dependencies (via vcpkg)
+# -----------------------------------------------------------------------------
+find_package(nlohmann_json REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(fmt REQUIRED)  # For structured logging migration
+
+# ImGui - we use our bundled version with custom patches
+# find_package(imgui REQUIRED)  # Uncomment when migrating to vcpkg imgui
+
+# -----------------------------------------------------------------------------
+# Main Executable Target
+# -----------------------------------------------------------------------------
+add_executable(CNCS
+    ${CNCS_SOURCES}
+    ${CNCS_HEADERS}
+    "src/resource.rc"
+)
+
+target_compile_definitions(CNCS PRIVATE
+    _CONSOLE
+    IMGUI_DEFINE_MATH_OPERATORS
+    _WIN32_WINNT=0x0A00
+    NOMINMAX
+    UNICODE
+    _UNICODE
+)
+
+# Precompiled header for core - use pch_core.cpp as the PCH source
+target_sources(CNCS PRIVATE
+    ${PCH_CORE_SOURCE}
+)
+
+# Set the PCH header for the target
+set_target_properties(CNCS PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+
+# Use target_precompile_headers (CMake 3.16+) for core PCH
+target_precompile_headers(CNCS PRIVATE
+    ${PCH_CORE_HEADER}
+)
+
+# Link libraries
+target_link_libraries(CNCS PRIVATE
+    nlohmann_json::nlohmann_json
+    ZLIB::ZLIB
+    fmt::fmt
+    # System libraries
+    d3d11
+    dxgi
+    d3dcompiler
+    dwmapi
+    gdi32
+    user32
+    imm32
+    ole32
+    ws2_32
+    wldap32
+    crypt32
+    normaliz
+    advapi32
+    bcrypt
+    setupapi
+)
+
+# MSVC-specific link options
+if(MSVC)
+    target_link_options(CNCS PRIVATE
+        /SUBSYSTEM:CONSOLE
+        /DEBUG:FULL
+        /OPT:REF
+        /OPT:ICF
+    )
+endif()
+
+# -----------------------------------------------------------------------------
+# Driver Project (Kernel Driver)
+# -----------------------------------------------------------------------------
+# Note: Kernel drivers require WDK + special CMake setup.
+# This is a placeholder - actual driver build uses WDK build system.
+# See driver/CNCS_drv.vcxproj for current driver build.
+
+# -----------------------------------------------------------------------------
+# Custom Targets
+# -----------------------------------------------------------------------------
+# Copy embedded collision meshes to output directory
+add_custom_command(TARGET CNCS POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:CNCS>/maps"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.glb"
+        "$<TARGET_FILE_DIR:CNCS>/maps/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.colmesh"
+        "$<TARGET_FILE_DIR:CNCS>/maps/"
+    COMMENT "Copying map collision data to output directory"
+)
+
+# Copy driver .sys to output directory (built separately)
+add_custom_command(TARGET CNCS POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/Release/CNCS_drv.sys"
+        "$<TARGET_FILE_DIR:CNCS>/CNCS_drv.sys"
+    COMMENT "Copying kernel driver to output directory"
+)
+
+# -----------------------------------------------------------------------------
+# Installation (optional)
+# -----------------------------------------------------------------------------
+install(TARGETS CNCS
+    RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
+)
+
+install(DIRECTORY maps/
+    DESTINATION maps
+    FILES_MATCHING PATTERN "*.glb" PATTERN "*.colmesh"
+)
+
+# -----------------------------------------------------------------------------
+# Testing (Catch2)
+# -----------------------------------------------------------------------------
+option(BUILD_TESTS "Build unit tests" OFF)
+if(BUILD_TESTS)
+    enable_testing()
+    find_package(Catch2 3 REQUIRED)
+    
+    add_executable(CNCS_tests
+        tests/test_cache.cpp
+        tests/test_visibility.cpp
+        tests/test_aimbot.cpp
+        tests/test_config.cpp
+    )
+    target_link_libraries(CNCS_tests PRIVATE Catch2::Catch2WithMain CNCS)
+    add_test(NAME CNCS_tests COMMAND CNCS_tests)
+endif()
+
+# -----------------------------------------------------------------------------
+# CPack for packaging
+# -----------------------------------------------------------------------------
+set(CPACK_PACKAGE_NAME "CNCS")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "CS2 External Overlay")
+set(CPACK_GENERATOR "ZIP")
+include(CPack)
+
+# -----------------------------------------------------------------------------
+# Helper: Print build summary
+# -----------------------------------------------------------------------------
+message(STATUS "==========================================")
+message(STATUS "CNCS Build Configuration")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  Generator: ${CMAKE_GENERATOR}")
+message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Output: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+message(STATUS "==========================================")

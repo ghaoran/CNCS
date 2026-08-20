@@ -1,0 +1,12 @@
+#include <windows.h>
+#include "resource.h"
+
+// Embedded map collision data (.m2, quantized + deduped + zlib).
+// Loaded by name at runtime so the cover check needs no external files.
+IDR_COLMESH_ANCIENT RCDATA "embedded/de_ancient.m2"
+IDR_COLMESH_ANUBIS  RCDATA "embedded/de_anubis.m2"
+IDR_COLMESH_CACHE   RCDATA "embedded/de_cache.m2"
+IDR_COLMESH_DUST2   RCDATA "embedded/de_dust2.m2"
+IDR_COLMESH_INFERNO RCDATA "embedded/de_inferno.m2"
+IDR_COLMESH_MIRAGE  RCDATA "embedded/de_mirage.m2"
+IDR_COLMESH_NUKE    RCDATA "embedded/de_nuke.m2"

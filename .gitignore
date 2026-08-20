@@ -1,0 +1,51 @@
+## CNCS 项目 .gitignore
+
+# 运行时生成
+config.json
+crashlog.txt
+*.colmesh
+
+# 构建产物
+x64/
+src/x64/
+.vs/
+*.exe
+*.pdb
+*.iobj
+*.ipdb
+*.obj
+*.pch
+*.res
+*.log
+*.tlog
+*.recipe
+*.json.command
+*.dt.module.json
+*.dt.d.json
+
+# 用户特定文件
+*.user
+*.suo
+*.sln.docstates
+
+# zig 兼容库
+**/libLIBCMT.a
+**/libOLDNAMES.a
+
+# Release 分发产物
+release/*.exe
+release/*.zip
+
+# 驱动编译产物
+driver/x64/
+*.sys
+
+# 编辑器配置
+.vscode/
+.idea/
+*.code-workspace
+
+# OS 生成文件
+Thumbs.db
+Desktop.ini
+.DS_Store

@@ -1,0 +1,137 @@
+namespace offsets
+{
+	// client.dll
+	inline DWORD64 entityList;
+	inline DWORD64 viewMatrix;
+	inline DWORD64 localPlayerController;
+	inline DWORD64 globalVars;
+	inline DWORD64 plantedC4;
+	inline DWORD64 weaponC4;
+
+	// engine2.dll
+	inline DWORD64 buildNumber;
+
+	namespace controller {
+		constexpr std::ptrdiff_t m_iPing = 0x830; // uint32
+		constexpr std::ptrdiff_t m_hPawn = 0x6BC; // CHandle<C_BasePlayerPawn>
+		constexpr std::ptrdiff_t m_steamID = 0x780; // uint64
+		constexpr std::ptrdiff_t m_iszPlayerName = 0x6F4; // char[128]
+		constexpr std::ptrdiff_t m_bIsLocalPlayerController = 0x788; // bool
+		constexpr std::ptrdiff_t m_pInGameMoneyServices = 0x810; // CCSPlayerController_InGameMoneyServices*
+		constexpr std::ptrdiff_t m_iAccount = 0x40; // int32 - CCSPlayerController_InGameMoneyServices 
+	}
+
+	namespace pawn {
+		constexpr std::ptrdiff_t m_vOldOrigin = 0x13B8; // Vector
+		constexpr std::ptrdiff_t m_iHealth = 0x34C; // int32
+		constexpr std::ptrdiff_t m_iTeamNum = 0x3E7; // uint8
+		constexpr std::ptrdiff_t m_fFlags = 0x3F4; // uint32 - C_BaseEntity::m_fFlags (FL_DUCKING = 1<<1)
+		constexpr std::ptrdiff_t m_bIsScoped = 0x1C78; // bool
+		constexpr std::ptrdiff_t m_ArmorValue = 0x1CA4; // int32
+		constexpr std::ptrdiff_t m_bIsDefusing = 0x1C7A; // bool
+		constexpr std::ptrdiff_t m_vecAbsVelocity = 0x3F8; // Vector
+
+		constexpr std::ptrdiff_t m_pGameSceneNode = 0x330; // CGameSceneNode*
+		
+		constexpr std::ptrdiff_t m_entitySpottedState = 0x1C60; // EntitySpottedState_t
+		constexpr std::ptrdiff_t m_bSpottedByMask = 0xC; // uint32[2] - EntitySpottedState_t
+		
+		constexpr std::ptrdiff_t m_flFlashOverlayAlpha = 0x141C; // float32 - C_CSPlayerPawnBase 
+		
+		constexpr std::ptrdiff_t m_pWeaponServices = 0x1208; // CPlayer_WeaponServices*
+		constexpr std::ptrdiff_t m_hActiveWeapon = 0x60; // CHandle<C_BasePlayerWeapon> - CPlayer_WeaponServices
+		constexpr std::ptrdiff_t m_AttributeManager = 0x11A8; // C_AttributeContainer - C_EconEntity (parent of C_BasePlayerWeapon)
+		constexpr std::ptrdiff_t m_Item = 0x50; // C_EconItemView - C_AttributeContainer
+		constexpr std::ptrdiff_t m_iItemDefinitionIndex = 0x1BA; // uint16 - C_EconItemView
+		constexpr std::ptrdiff_t m_iClip1 = 0x1700; // int32 - C_BasePlayerWeapon
+		constexpr std::ptrdiff_t m_bInReload = 0x1814; // bool - C_CSWeaponBase
+		constexpr std::ptrdiff_t m_pObserverServices = 0x1220; // CPlayer_ObserverServices*
+	}
+
+	namespace bomb {
+		constexpr std::ptrdiff_t m_isPlanted = 0x8; // unk
+		constexpr std::ptrdiff_t m_bC4Activated = 0x11E8; // bool
+		constexpr std::ptrdiff_t m_nBombSite = 0x11A4; // int32
+
+		constexpr std::ptrdiff_t m_vecAbsOrigin = 0xC8; // VectorWS - CGameSceneNode 
+	}
+
+	namespace bone {
+		constexpr std::ptrdiff_t m_modelState = 0x140; // CModelState
+	}
+
+	namespace observerServices {
+		constexpr std::ptrdiff_t m_iObserverMode = 0x48;
+		constexpr std::ptrdiff_t m_hObserverTarget = 0x4C;
+	}
+
+	// 实体遍历与烟雾检测
+	constexpr std::ptrdiff_t dwGameEntitySystem_highestEntityIndex = 8336; // 0x2090, uint32 (CGameEntitySystem)
+
+	// CGameEntitySystem 数组访问模式
+	// entity_list + EntityListOffset → 第一个 chunk 指针
+	// chunk_ptr + ChunkStride * chunk_index → chunk 基址
+	// chunk_base + EntryStride * (handle & HandleMask) → entity identity
+	constexpr std::ptrdiff_t EntityListOffset = 0x10;   // CGameEntitySystem::m_entityList
+	constexpr std::ptrdiff_t ChunkStride     = 0x8;    // 每个 chunk 指针的步长
+	constexpr std::ptrdiff_t EntryStride     = 0x70;   // 每个 entity identity 的步长
+	constexpr uint32_t       HandleMask      = 0x1FF;  // chunk 内索引掩码 (512 entries/chunk)
+	constexpr uint32_t       HandleBits      = 9;      // log2(512) = 9，右移位数
+	constexpr uint32_t       IndexMask       = 0x7FFF; // entity handle 的索引部分掩码
+
+	// C4 载体句柄偏移 (C_BaseEntity::m_hOwnerEntity)
+	constexpr std::ptrdiff_t m_hOwnerEntity  = 0x520;
+
+	namespace entity {
+		constexpr std::ptrdiff_t m_designerName = 0x20; // const char* - CEntityIdentity::m_designerName (class name)
+	}
+
+	namespace smoke {
+		constexpr std::ptrdiff_t m_nSmokeEffectTickBegin = 4728; // int32 - C_SmokeGrenadeProjectile
+		constexpr std::ptrdiff_t m_bDidSmokeEffect = 4732;    // bool
+		constexpr std::ptrdiff_t m_vSmokeDetonationPos = 4752; // Vector
+		constexpr std::ptrdiff_t m_VoxelFrameData = 4768;     // byte* (pointer to voxel bitfield)
+		constexpr std::ptrdiff_t m_nVoxelFrameDataSize = 4792; // int32 (size of voxel buffer in bytes)
+		constexpr std::ptrdiff_t m_nVoxelUpdate = 4796;       // int32 (voxel data version counter)
+		constexpr std::ptrdiff_t m_bSmokeVolumeDataReceived = 4800; // bool (all voxel data received)
+	}
+
+	namespace global {
+		constexpr std::ptrdiff_t maxClients = 0x10;
+		constexpr std::ptrdiff_t currentMapName = 0x180;
+		constexpr std::ptrdiff_t currentTime = 0x2C;
+	}
+
+	namespace signatures
+	{
+		const std::string viewMatrix = "48 8D 0D ?? ?? ?? ?? 48 C1 E0 06";
+		const std::string globalVars = "48 89 15 ?? ?? ?? ?? 48 89 42";
+		const std::string entityList = "48 8B 0D ?? ?? ?? ?? 48 89 7C 24 ?? 8B FA C1 EB";
+		const std::string localPlayerController = "48 8B 05 ?? ?? ?? ?? 41 89 BE";
+		const std::string plantedC4 = "48 8B 1D ?? ?? ?? ?? 45 32 F6";
+		const std::string weaponC4 =
+			"48 89 05 ?? ?? ?? ?? "
+			"F7 C1 ?? ?? ?? ?? "
+			"74 ?? "
+			"81 E1 ?? ?? ?? ?? "
+			"89 0D ?? ?? ?? ?? "
+			"8B 05 ?? ?? ?? ?? "
+			"89 1D ?? ?? ?? ?? "
+			"EB ?? "
+			"48 8B 15 ?? ?? ?? ?? "
+			"48 8B 5C 24 ?? "
+			"FF C0 "
+			"89 05 ?? ?? ?? ?? "
+			"48 8B C6 48 89 34 EA 80 BE";
+
+#if 0
+		const std::string localPlayerPawn = "48 8D 05 ?? ?? ?? ?? C3 CC CC CC CC CC CC CC CC 48 83 EC ?? 8B 0D";
+
+		const std::string csgoInput = "48 89 05 ?? ?? ?? ?? 0F 57 C0 0F 11 05";
+		const std::string viewAngles = "F2 42 0F 10 84 28 ?? ?? ?? ??";
+#endif
+
+		const std::string buildNumber = "89 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ff 15 ?? ?? ?? ?? 48 8b 0d";
+
+	}
+}

@@ -1,0 +1,13 @@
+TARGETNAME=CNCS_drv
+TARGETTYPE=DRIVER
+
+DRIVERTYPE=WDM
+
+TARGETPATH=..\x64\driver
+
+INCLUDES=..\src
+
+# WdmlibIoCreateDeviceSecure 需要 wdmsec.lib
+TARGETLIBS=$(DDK_LIB_PATH)\wdmsec.lib
+
+SOURCES=CNCS_drv.c
