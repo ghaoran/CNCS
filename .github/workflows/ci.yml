@@ -37,7 +37,7 @@ jobs:
       uses: microsoft/setup-msbuild@v2
       with:
         vs-version: '2022'
-        vs-edition: 'community'
+        # vs-edition 不是有效参数，已移除
 
     - name: 缓存 vcpkg
       uses: actions/cache@v4
