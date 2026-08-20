@@ -33,11 +33,23 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
+    - name: 安装 Visual Studio Build Tools (C++ workload)
+      run: |
+        # 安装 Visual Studio Build Tools 2022 with C++ workload
+        vs_installer.exe --quiet --wait --norestart --nocache ^
+          --add Microsoft.VisualStudio.Workload.VCTools ^
+          --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 ^
+          --add Microsoft.VisualStudio.Component.Windows10SDK.22621
+      shell: cmd
+
+    - name: 设置 MSBuild 路径
+      run: |
+        echo "C:\Program Files\Microsoft Visual Studio\2022\Community\Msbuild\Current\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
     - name: 设置 MSVC 环境
       uses: microsoft/setup-msbuild@v2
       with:
         vs-version: '2022'
-        # vs-edition 不是有效参数，已移除
 
     - name: 缓存 vcpkg
       uses: actions/cache@v4
@@ -57,7 +69,7 @@ jobs:
 
     - name: 安装依赖
       run: |
-        ./vcpkg/vcpkg.exe install --triplet x64-windows
+        ./vcpkg/vcpkg.exe install --triplet x64-windows --feature-flags=manifests
 
     - name: 配置 CMake
       run: |
