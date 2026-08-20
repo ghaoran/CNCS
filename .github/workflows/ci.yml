@@ -14,7 +14,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-2022
+    runs-on: windows-latest
     timeout-minutes: 45
     defaults:
       run:
@@ -90,7 +90,10 @@ jobs:
 
     - name: Format check
       run: |
-        clang-format --dry-run --Werror $(find src -name "*.cpp" -o -name "*.hpp" -o -name "*.h" -o -name "*.c")
+        $files = Get-ChildItem -Recurse -Path src -Include *.cpp,*.hpp,*.h,*.c | Select-Object -ExpandProperty FullName
+        if ($files) {
+          clang-format --dry-run --Werror $files
+        }
 
   release:
     needs: build
@@ -108,10 +111,10 @@ jobs:
 
     - name: Package
       run: |
-        mkdir release
+        mkdir release -Force
         copy artifacts\bin\Release\CNCS.exe release\
         copy artifacts\driver\x64\Release\CNCS_drv.sys release\
-        mkdir release\maps
+        mkdir release\maps -Force
         copy src\embedded\*.m2 release\maps\
 
     - name: Create Release
