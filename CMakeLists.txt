@@ -245,14 +245,6 @@ else()
     message(WARNING "Driver not found at ${DRIVER_SYS_PATH}, skipping driver copy")
 endif()
 
-# Copy driver .sys to output directory (built separately)
-add_custom_command(TARGET CNCS POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/Release/CNCS_drv.sys"
-        "$<TARGET_FILE_DIR:CNCS>/CNCS_drv.sys"
-    COMMENT "Copying kernel driver to output directory"
-)
-
 # -----------------------------------------------------------------------------
 # Installation (optional)
 # -----------------------------------------------------------------------------
