@@ -279,7 +279,7 @@ void Menu::RenderImpl() {
 #ifdef _DEBUG
 		section("开发");
 		if (ImGui::Checkbox("控制台", &cfg::dev::console))
-			if (!cfg::dev::console) LogHelper::Free();
+			if (!cfg::dev::console) al::LogHelper::Free();
 		static int key_out;
 		if (ImGui::Button("设置菜单按键")) {
 			for (int i = ImGuiKey_NamedKey_BEGIN; i < ImGuiKey_NamedKey_END; i++)

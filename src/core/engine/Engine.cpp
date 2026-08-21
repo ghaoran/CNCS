@@ -97,7 +97,7 @@ Result<void, cncs_error::Code> Engine::InitImpl() {
 
 #ifdef _DEBUG
     if (!cfg::dev::console)
-        LogHelper::Free();
+        al::LogHelper::Free();
 #endif
 
     // 启动引擎线程（可 join，Shutdown 时先停止再卸载驱动）

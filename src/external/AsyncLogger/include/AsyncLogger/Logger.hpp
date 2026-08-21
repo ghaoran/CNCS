@@ -19,6 +19,11 @@
 #include "LogMessage.hpp"
 #include "LogStream.hpp"
 
+// pch_core.hpp 定义了 #define LOGF(...) 宏（指向 al::LogHelper::Log）。
+// 下方同名 LOGF 函数模板若被宏展开会破坏函数定义（C2244），故先取消宏，
+// 使本库的 LOGF 函数模板能正常声明/定义。项目统一用宏 LOGF，此处无需恢复。
+#undef LOGF
+
 namespace al
 {
     using LogMessagePtr = std::shared_ptr<LogMessage>;
