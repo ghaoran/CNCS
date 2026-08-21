@@ -79,12 +79,12 @@ using json = nlohmann::json;
 #include <core/logger/LogHelper.hpp>
 
 // 日志级别宏（供 LOGF 使用）
-#define VERBOSE al::eLogLevel::VERBOSE
-#define DEBUG   al::eLogLevel::DEBUG
-#define INFO    al::eLogLevel::INFO
-#define WARNING al::eLogLevel::WARNING
-#define ERROR   al::eLogLevel::ERROR
-#define FATAL   al::eLogLevel::FATAL
+#define VERBOSE al::eLogLevel::LOG_VERBOSE
+#define DEBUG   al::eLogLevel::LOG_DEBUG
+#define INFO    al::eLogLevel::LOG_INFO
+#define WARNING al::eLogLevel::LOG_WARNING
+#define ERROR   al::eLogLevel::LOG_ERROR
+#define FATAL   al::eLogLevel::LOG_FATAL
 
 #define LOGF(level, fmt, ...) ::al::LogHelper::Log(level, fmt, ##__VA_ARGS__)
 

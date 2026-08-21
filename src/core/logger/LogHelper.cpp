@@ -51,7 +51,7 @@ bool LogHelper::InitImpl() {
 
     al::Logger::AddSink([this](al::LogMessagePtr msg) {
 #ifndef _DEBUG
-        if (msg->level == al::eLogLevel::VERBOSE)
+        if (msg->level == al::eLogLevel::LOG_VERBOSE)
             return;
 #endif
         std::string formatted = this->FormatConsole(msg);
@@ -91,12 +91,12 @@ LogColor LogHelper::GetColor(const al::eLogLevel level)
 {
     switch (level)
     {
-    case al::eLogLevel::VERBOSE: return LogColor::BLUE;
-    case al::eLogLevel::DEBUG:   return LogColor::CYAN;
-    case al::eLogLevel::INFO:    return LogColor::GREEN;
-    case al::eLogLevel::WARNING: return LogColor::YELLOW;
-    case al::eLogLevel::ERROR:   return LogColor::RED;
-    case al::eLogLevel::FATAL:   return LogColor::MAGENTA;
+    case al::eLogLevel::LOG_VERBOSE: return LogColor::BLUE;
+    case al::eLogLevel::LOG_DEBUG:   return LogColor::CYAN;
+    case al::eLogLevel::LOG_INFO:    return LogColor::GREEN;
+    case al::eLogLevel::LOG_WARNING: return LogColor::YELLOW;
+    case al::eLogLevel::LOG_ERROR:   return LogColor::RED;
+    case al::eLogLevel::LOG_FATAL:   return LogColor::MAGENTA;
     }
     return LogColor::WHITE;
 }

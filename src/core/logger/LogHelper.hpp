@@ -14,12 +14,12 @@
 namespace al {
 
 enum class eLogLevel {
-    VERBOSE,
-    DEBUG,
-    INFO,
-    WARNING,
-    ERROR,
-    FATAL
+    LOG_VERBOSE,
+    LOG_DEBUG,
+    LOG_INFO,
+    LOG_WARNING,
+    LOG_ERROR,
+    LOG_FATAL
 };
 
 struct LogMessage {
@@ -64,12 +64,12 @@ public:
         
         const char* levelStr = "";
         switch (level) {
-            case eLogLevel::VERBOSE: levelStr = "[VERBOSE] "; break;
-            case eLogLevel::DEBUG:   levelStr = "[DEBUG] "; break;
-            case eLogLevel::INFO:    levelStr = "[INFO] "; break;
-            case eLogLevel::WARNING: levelStr = "[WARNING] "; break;
-            case eLogLevel::ERROR:   levelStr = "[ERROR] "; break;
-            case eLogLevel::FATAL:   levelStr = "[FATAL] "; break;
+            case eLogLevel::LOG_VERBOSE: levelStr = "[VERBOSE] "; break;
+            case eLogLevel::LOG_DEBUG:   levelStr = "[DEBUG] "; break;
+            case eLogLevel::LOG_INFO:    levelStr = "[INFO] "; break;
+            case eLogLevel::LOG_WARNING: levelStr = "[WARNING] "; break;
+            case eLogLevel::LOG_ERROR:   levelStr = "[ERROR] "; break;
+            case eLogLevel::LOG_FATAL:   levelStr = "[FATAL] "; break;
         }
         
         std::cout << levelStr << fmt::format(fmt_str, std::forward<Args>(args)...) << std::endl;
