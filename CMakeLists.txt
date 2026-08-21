@@ -58,13 +58,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}"
 # -----------------------------------------------------------------------------
 # vcpkg Integration
 # -----------------------------------------------------------------------------
-# Expected vcpkg packages:
-#   - imgui[docking-experimental,opengl3-binding] (we use dx11 backend)
+# Expected vcpkg packages (see vcpkg.json):
 #   - nlohmann-json
 #   - zlib
-#   - spdlog (for future logging migration)
-#   - fmt (for structured logging)
-#   - catch2 (for unit tests)
+#   - fmt
 
 # Toolchain file should be passed via -DCMAKE_TOOLCHAIN_FILE=.../vcpkg.cmake
 if(NOT DEFINED ENV{VCPKG_ROOT} AND NOT CMAKE_TOOLCHAIN_FILE)
@@ -92,37 +89,13 @@ source_group("Source Files" FILES ${CNCS_SOURCES})
 source_group("Header Files" FILES ${CNCS_HEADERS})
 
 # -----------------------------------------------------------------------------
-# Include Directories
-# -----------------------------------------------------------------------------
-include_directories(
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include/AsyncLogger
-)
-
-# -----------------------------------------------------------------------------
-# Precompiled Headers
-# -----------------------------------------------------------------------------
-# Core PCH: minimal, stable headers used everywhere
-set(PCH_CORE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.hpp")
-set(PCH_CORE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.cpp")
-
-# Module PCHs (optional, for heavy modules)
-set(PCH_ENGINE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_engine.hpp")
-set(PCH_GUI_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_gui.hpp")
-
-# -----------------------------------------------------------------------------
 # External Dependencies (via vcpkg)
 # -----------------------------------------------------------------------------
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
-find_package(fmt REQUIRED)  # For structured logging migration
+find_package(fmt REQUIRED)
 
-# ImGui - we use our bundled version with custom patches
-# find_package(imgui REQUIRED)  # Uncomment when migrating to vcpkg imgui
+# ImGui - we use our bundled version (src/external/imgui)
 
 # -----------------------------------------------------------------------------
 # Main Executable Target
@@ -142,20 +115,28 @@ target_compile_definitions(CNCS PRIVATE
     _UNICODE
 )
 
-# Precompiled header for core - use pch_core.cpp as the PCH source
-target_sources(CNCS PRIVATE
-    ${PCH_CORE_SOURCE}
+# Include directories
+target_include_directories(CNCS PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include
+)
+
+# Precompiled Headers
+set(PCH_CORE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.hpp")
+set(PCH_CORE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.cpp")
+
+# Use target_precompile_headers (CMake 3.16+) for core PCH
+target_precompile_headers(CNCS PRIVATE
+    ${PCH_CORE_HEADER}
 )
 
 # Set the PCH header for the target
 set_target_properties(CNCS PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
-)
-
-# Use target_precompile_headers (CMake 3.16+) for core PCH
-target_precompile_headers(CNCS PRIVATE
-    ${PCH_CORE_HEADER}
 )
 
 # Link libraries
@@ -248,6 +229,11 @@ if(BUILD_TESTS)
         tests/test_visibility.cpp
         tests/test_aimbot.cpp
         tests/test_config.cpp
+        tests/test_kalman.cpp
+        tests/test_ballistics.cpp
+        tests/test_result.cpp
+        tests/test_highrestimer.cpp
+        tests/test_core.cpp
     )
     target_link_libraries(CNCS_tests PRIVATE Catch2::Catch2WithMain CNCS)
     add_test(NAME CNCS_tests COMMAND CNCS_tests)
