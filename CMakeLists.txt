@@ -96,12 +96,7 @@ set(CNCS_SOURCES
     src/external/imgui/imgui_widgets.cpp
     src/external/imgui/backends/imgui_impl_win32.cpp
     src/external/imgui/backends/imgui_impl_dx11.cpp
-    src/external/AsyncLogger/src/Logger.cpp
-    src/external/AsyncLogger/src/LogCapture.cpp
-    src/external/AsyncLogger/src/LogStream.cpp
-    src/external/AsyncLogger/src/LogIntermediate.cpp
-    src/external/AsyncLogger/src/LogMessage.cpp
-    src/external/AsyncLogger/src/LogLevel.cpp
+    src/core/logger/AsyncLoggerImpl.cpp
     src/gui/frontend/aimbot/Aimbot.cpp
     src/gui/frontend/esp/Esp.cpp
     src/gui/frontend/menu/Menu.cpp
