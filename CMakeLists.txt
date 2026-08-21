@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.25)
 project(CNCS
     VERSION 1.0.0
-    LANGUAGES CXX C
+    LANGUAGES CXX
     DESCRIPTION "CS2 External Overlay with ESP, Aimbot, Triggerbot"
 )
 
@@ -32,7 +32,7 @@ if(MSVC)
         /wd5045   # Spectre mitigation (we handle separately)
     )
     # Security hardening
-    add_compile_options(/GS /guard:cf /sdl /DYNAMICBASE /NXCOMPAT)
+    add_compile_options(/GS /guard:cf /sdl /DYNAMICBASE)
     add_link_options(/DYNAMICBASE /NXCOMPAT /GUARD:CF)
 endif()
 
