@@ -11,24 +11,12 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 
+// 统一使用 AsyncLogger 提供的 al::eLogLevel / al::LogMessage / al::LogMessagePtr，
+// 避免与 LogHelper 重复定义（原先两处各自定义导致 C2011 redefinition）。
+#include <AsyncLogger/LogLevel.hpp>
+#include <AsyncLogger/LogMessage.hpp>
+
 namespace al {
-
-enum class eLogLevel {
-    LOG_VERBOSE,
-    LOG_DEBUG,
-    LOG_INFO,
-    LOG_WARNING,
-    LOG_ERROR,
-    LOG_FATAL
-};
-
-struct LogMessage {
-    eLogLevel level;
-    std::string message;
-    std::chrono::system_clock::time_point timestamp;
-};
-
-using LogMessagePtr = std::shared_ptr<LogMessage>;
 
 enum class LogColor
 {
@@ -56,9 +44,9 @@ public:
     static void Destroy();
     static bool Init();
     
-    // Use const char* format string for better MSVC compatibility
+    // fmt_str 接受 const char* 与 std::string（Window.cpp 等用字符串拼接后传入）
     template<typename... Args>
-    static void Log(eLogLevel level, const char* fmt_str, Args&&... args) {
+    static void Log(eLogLevel level, const std::string& fmt_str, Args&&... args) {
         static std::mutex mtx;
         std::lock_guard<std::mutex> lock(mtx);
         

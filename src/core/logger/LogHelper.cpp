@@ -11,6 +11,10 @@
 #define RESET_STREAM_COLOR "\x1b[0m"
 #define HEX(value) "0x" << std::hex << std::uppercase << DWORD64(value) << std::dec << std::nouppercase
 
+// LogHelper 定义于 namespace al 内；这里用 using 使裸的 LogHelper:: 可用
+// （main.cpp 已用 al::LogHelper:: 显式前缀，此处保持本文件原始调用风格）。
+using namespace al;
+
 bool LogHelper::Init()
 {
     return GetInstance().InitImpl();

@@ -8,6 +8,10 @@
 #include "core/util/Result.hpp"
 #include "core/util/HighResTimer.hpp"
 
+// HighResTimer 定义于 util 命名空间；下方以裸名使用，这里引入到当前作用域，
+// 否则 Engine.hpp/cpp 中 const HighResTimer& / high_res_timer_ 无法解析。
+using util::HighResTimer;
+
 class Engine {
 public:
     ~Engine()                           = default;

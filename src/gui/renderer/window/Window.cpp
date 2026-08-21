@@ -392,8 +392,9 @@ LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wParam, LPARAM l
 		return 0;
 	case WM_DPICHANGED:
 		LOGF(VERBOSE, "窗口过程 WM_DPICHANGED 事件触发");
-		if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DpiEnableScaleViewports)
-		{
+		// bundled ImGui 1.93 已移除 ImGuiConfigFlags_DpiEnableScaleViewports，
+		// 直接按系统建议矩形调整单窗口位置尺寸。
+        {
 			const RECT* suggested_rect = (RECT*)lParam;
 
 			SetWindowPos(

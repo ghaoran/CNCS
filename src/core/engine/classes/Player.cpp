@@ -5,8 +5,10 @@
 #include "Weapon.hpp"
 #include "core/engine/Engine.hpp"
 #include "core/offsets/Dumper.hpp"
-
 #include "core/engine/classes/ObserverServices.hpp"
+
+// 使 1s / 5ms 等 std::chrono 字面量可用
+using namespace std::chrono_literals;
 
 bool Player::Update() {
 	if (!Engine::GetProcess())
