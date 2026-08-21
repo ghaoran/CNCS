@@ -76,6 +76,16 @@ namespace chr = std::chrono;
 using json = nlohmann::json;
 
 // Logging macros (temporary - will migrate to spdlog/fmt)
+#include <core/logger/LogHelper.hpp>
+
+// 日志级别宏（供 LOGF 使用）
+#define VERBOSE al::eLogLevel::VERBOSE
+#define DEBUG   al::eLogLevel::DEBUG
+#define INFO    al::eLogLevel::INFO
+#define WARNING al::eLogLevel::WARNING
+#define ERROR   al::eLogLevel::ERROR
+#define FATAL   al::eLogLevel::FATAL
+
 #define LOGF(level, fmt, ...) ::al::LogHelper::Log(level, fmt, ##__VA_ARGS__)
 
 // Compile-time string encryption (kept from common.hpp)

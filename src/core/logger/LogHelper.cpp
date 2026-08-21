@@ -1,5 +1,11 @@
 
 #include "LogHelper.hpp"
+#include <AsyncLogger/Logger.hpp>
+#include <AsyncLogger/LogCapture.hpp>
+#include <AsyncLogger/LogLevel.hpp>
+#include <AsyncLogger/LogMessage.hpp>
+#include <sstream>
+#include <iomanip>
 
 #define ADD_COLOR_TO_STREAM(color) "\x1b[" << int(color) << "m"
 #define RESET_STREAM_COLOR "\x1b[0m"
@@ -12,8 +18,8 @@ bool LogHelper::Init()
 
 void LogHelper::Destroy()
 {
-    Logger::FlushQueue();
-    Logger::Destroy();
+    al::Logger::FlushQueue();
+    al::Logger::Destroy();
 }
 
 void LogHelper::Free() {
@@ -24,7 +30,7 @@ void LogHelper::Free() {
 }
 
 bool LogHelper::InitImpl() {
-    Logger::Init();
+    al::Logger::Init();
 
     if (auto handle = GetStdHandle(STD_OUTPUT_HANDLE); handle != nullptr)
     {
@@ -43,9 +49,9 @@ bool LogHelper::InitImpl() {
 
     m_ConsoleOut.open("CONOUT$", std::ios_base::out | std::ios_base::app);
 
-    Logger::AddSink([this](LogMessagePtr msg) {
+    al::Logger::AddSink([this](al::LogMessagePtr msg) {
 #ifndef _DEBUG
-        if (msg->Level() == eLogLevel::VERBOSE)
+        if (msg->level == al::eLogLevel::VERBOSE)
             return;
 #endif
         std::string formatted = this->FormatConsole(msg);
@@ -57,44 +63,46 @@ bool LogHelper::InitImpl() {
     return true;
 }
 
-std::string LogHelper::FormatConsole(const LogMessagePtr msg) {
+std::string LogHelper::FormatConsole(const al::LogMessagePtr msg) {
         std::stringstream out;
 
 #ifdef _DEBUG
-        const auto timestamp = std::format("{0:%H:%M:%S}", msg->Timestamp());
+        const auto timestamp = std::format("{0:%H:%M:%S}", msg->timestamp);
 #else
-        const auto timestamp = std::format("{0:%H:%M:%S}", std::chrono::floor<std::chrono::seconds>(msg->Timestamp()));
+        const auto timestamp = std::format("{0:%H:%M:%S}", std::chrono::floor<std::chrono::seconds>(msg->timestamp));
 #endif
-		const auto& location = msg->Location();
-		const auto level     = msg->Level();
+		const auto& location = msg->location;
+		const auto level     = msg->level;
 		const auto color     = GetColor(level);
 
 		const auto file = std::filesystem::path(location.file_name()).filename().string();
 
 #ifdef _DEBUG
 		out << ADD_COLOR_TO_STREAM(LogColor::GRAY) << "[" << timestamp << "]" << ADD_COLOR_TO_STREAM(color) << "[" << GetLevelStr(level) << "/" << file << ":"
-		    << location.line() << "] " << RESET_STREAM_COLOR << msg->Message();
+		    << location.line() << "] " << RESET_STREAM_COLOR << msg->message;
 #else
-        out << ADD_COLOR_TO_STREAM(LogColor::GRAY) << "[" << timestamp << "]" << ADD_COLOR_TO_STREAM(color) << "[" << GetLevelStr(level) << "] " << RESET_STREAM_COLOR << msg->Message();
+        out << ADD_COLOR_TO_STREAM(LogColor::GRAY) << "[" << timestamp << "]" << ADD_COLOR_TO_STREAM(color) << "[" << GetLevelStr(level) << "] " << RESET_STREAM_COLOR << msg->message;
 #endif
 
 		return out.str();
 }
 
-LogColor LogHelper::GetColor(const eLogLevel level)
+LogColor LogHelper::GetColor(const al::eLogLevel level)
 {
     switch (level)
     {
-    case eLogLevel::VERBOSE: return LogColor::BLUE;
-    case eLogLevel::INFO: return LogColor::GREEN;
-    case eLogLevel::WARNING: return LogColor::YELLOW;
-    case eLogLevel::FATAL: return LogColor::RED;
+    case al::eLogLevel::VERBOSE: return LogColor::BLUE;
+    case al::eLogLevel::DEBUG:   return LogColor::CYAN;
+    case al::eLogLevel::INFO:    return LogColor::GREEN;
+    case al::eLogLevel::WARNING: return LogColor::YELLOW;
+    case al::eLogLevel::ERROR:   return LogColor::RED;
+    case al::eLogLevel::FATAL:   return LogColor::MAGENTA;
     }
     return LogColor::WHITE;
 }
 
-const char* LogHelper::GetLevelStr(const eLogLevel level) {
-    constexpr std::array<const char*, 4> levelStrings = {{"DBG", "INF", "WRN", "ERR"}};
+const char* LogHelper::GetLevelStr(const al::eLogLevel level) {
+    constexpr std::array<const char*, 6> levelStrings = {{"VRB", "DBG", "INF", "WRN", "ERR", "FTL"}};
 
-    return levelStrings[level];
+    return levelStrings[static_cast<int>(level)];
 }

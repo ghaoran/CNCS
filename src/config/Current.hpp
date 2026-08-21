@@ -1,5 +1,8 @@
 #pragma once
 
+#include <core/engine/types/Color.hpp>
+#include <core/engine/types/Vec2.hpp>
+
 namespace cfg {
 	inline bool enabled = true;
 

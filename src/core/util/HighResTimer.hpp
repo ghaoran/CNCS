@@ -38,9 +38,10 @@ public:
         return *this;
     }
     
-    // Sleep for specified duration with high precision
-    void SleepFor(std::chrono::microseconds duration) {
-        if (!timer_) {
+    // Static convenience methods
+    static void SleepFor(std::chrono::microseconds duration) {
+        static HighResTimer timer;
+        if (!timer.timer_) {
             std::this_thread::sleep_for(duration);
             return;
         }
@@ -48,30 +49,18 @@ public:
         LARGE_INTEGER due_time;
         due_time.QuadPart = -static_cast<LONGLONG>(duration.count() * 10); // 100ns units, negative = relative
         
-        if (!SetWaitableTimer(timer_, &due_time, 0, nullptr, nullptr, FALSE)) {
+        if (!SetWaitableTimer(timer.timer_, &due_time, 0, nullptr, nullptr, FALSE)) {
             std::this_thread::sleep_for(duration);
             return;
         }
         
-        WaitForSingleObject(timer_, INFINITE);
-    }
-    
-    // Sleep until specified time point
-    void SleepUntil(std::chrono::steady_clock::time_point wake_time) {
-        auto now = std::chrono::steady_clock::now();
-        if (wake_time <= now) return;
-        SleepFor(std::chrono::duration_cast<std::chrono::microseconds>(wake_time - now));
-    }
-    
-    // Static convenience methods
-    static void SleepFor(std::chrono::microseconds duration) {
-        static HighResTimer timer;
-        timer.SleepFor(duration);
+        WaitForSingleObject(timer.timer_, INFINITE);
     }
     
     static void SleepUntil(std::chrono::steady_clock::time_point wake_time) {
-        static HighResTimer timer;
-        timer.SleepUntil(wake_time);
+        auto now = std::chrono::steady_clock::now();
+        if (wake_time <= now) return;
+        SleepFor(std::chrono::duration_cast<std::chrono::microseconds>(wake_time - now));
     }
     
     static void SleepMs(int milliseconds) {
