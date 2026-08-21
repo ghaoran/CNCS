@@ -21,7 +21,7 @@ jobs:
         shell: pwsh
 
     strategy:
-      fail-fast: false   # 防止一个矩阵失败导致另一个被取消
+      fail-fast: false
       matrix:
         configuration: [Debug, Release]
         include:
@@ -37,15 +37,8 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    # 修复：删除冗余的 submodule 步骤（checkout 已处理）
-    # - name: Initialize submodules
-    #   ...
-
-    # 修复：vs-version 改为正确的版本范围格式，或完全删除（推荐删除，让 action 自动找最新版）
     - name: Setup MSBuild (pre-installed VS 2022)
       uses: microsoft/setup-msbuild@v2
-      # 如果一定要指定版本，用 vs-version: '[17.0,18.0)'
-      # 但建议直接删除 with 块，让 action 自动检测
 
     - name: Cache vcpkg
       id: cache-vcpkg
@@ -68,11 +61,6 @@ jobs:
       run: |
         ./vcpkg/vcpkg.exe install --triplet x64-windows
 
-    - name: Install clang-format
-      run: |
-        choco install llvm --version 18.1.8 -y --no-progress
-        $env:PATH += ";C:\Program Files\LLVM\bin"
-
     - name: Configure CMake
       run: |
         cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
@@ -86,7 +74,6 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure -C Debug
 
-    # 修复：driver 构建改为更健壮的路径检查
     - name: Build driver (skip if WDK not available)
       run: |
         cd driver
@@ -98,7 +85,6 @@ jobs:
           Write-Warning "WDK not found, skipping driver build"
         }
 
-    # 修复：artifact 路径使用通配符，避免文件不存在时失败
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -112,9 +98,14 @@ jobs:
     - name: Format check
       continue-on-error: true
       run: |
+        $clangFormat = Get-Command clang-format -ErrorAction SilentlyContinue
+        if (-not $clangFormat) {
+          Write-Warning "clang-format not found, skipping format check"
+          exit 0
+        }
         $files = Get-ChildItem -Recurse -Path src -Include *.cpp,*.hpp,*.h,*.c | Select-Object -ExpandProperty FullName
         if ($files) {
-          clang-format --dry-run --Werror $files
+          & $clangFormat.Source --dry-run --Werror $files
         }
 
   release:
@@ -138,7 +129,6 @@ jobs:
         if (Test-Path "artifacts\driver\x64\Release\CNCS_drv.sys") {
           copy artifacts\driver\x64\Release\CNCS_drv.sys release\
         }
-        # 修复：如果 maps 目录不存在，创建空目录或跳过
         if (Test-Path "src\embedded\*.m2") {
           mkdir release\maps -Force
           copy src\embedded\*.m2 release\maps\

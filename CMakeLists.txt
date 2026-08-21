@@ -182,18 +182,37 @@ endif()
 # -----------------------------------------------------------------------------
 # Custom Targets
 # -----------------------------------------------------------------------------
-# Copy embedded collision meshes to output directory
-add_custom_command(TARGET CNCS POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:CNCS>/maps"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.glb"
-        "$<TARGET_FILE_DIR:CNCS>/maps/"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.colmesh"
-        "$<TARGET_FILE_DIR:CNCS>/maps/"
-    COMMENT "Copying map collision data to output directory"
-)
+# Copy embedded collision meshes to output directory (only if maps/ exists)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
+    file(GLOB MAP_GLB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.glb")
+    file(GLOB MAP_COLMESH_FILES "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.colmesh")
+    if(MAP_GLB_FILES OR MAP_COLMESH_FILES)
+        add_custom_command(TARGET CNCS POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:CNCS>/maps"
+        )
+        foreach(f ${MAP_GLB_FILES} ${MAP_COLMESH_FILES})
+            add_custom_command(TARGET CNCS POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${f}" "$<TARGET_FILE_DIR:CNCS>/maps/"
+            )
+        endforeach()
+    endif()
+endif()
+
+# Copy driver .sys to output directory (built separately, only if exists)
+set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/${CMAKE_BUILD_TYPE}/CNCS_drv.sys")
+if(NOT EXISTS "${DRIVER_SYS_PATH}")
+    set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/Release/CNCS_drv.sys")
+endif()
+if(EXISTS "${DRIVER_SYS_PATH}")
+    add_custom_command(TARGET CNCS POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${DRIVER_SYS_PATH}"
+            "$<TARGET_FILE_DIR:CNCS>/CNCS_drv.sys"
+        COMMENT "Copying kernel driver to output directory"
+    )
+else()
+    message(WARNING "Driver not found at ${DRIVER_SYS_PATH}, skipping driver copy")
+endif()
 
 # Copy driver .sys to output directory (built separately)
 add_custom_command(TARGET CNCS POST_BUILD
@@ -211,10 +230,12 @@ install(TARGETS CNCS
     BUNDLE DESTINATION .
 )
 
-install(DIRECTORY maps/
-    DESTINATION maps
-    FILES_MATCHING PATTERN "*.glb" PATTERN "*.colmesh"
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
+    install(DIRECTORY maps/
+        DESTINATION maps
+        FILES_MATCHING PATTERN "*.glb" PATTERN "*.colmesh"
+    )
+endif()
 
 # -----------------------------------------------------------------------------
 # Testing (Catch2)
