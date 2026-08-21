@@ -94,6 +94,14 @@ set(CNCS_SOURCES
     src/external/imgui/imgui_draw.cpp
     src/external/imgui/imgui_tables.cpp
     src/external/imgui/imgui_widgets.cpp
+    src/external/imgui/backends/imgui_impl_win32.cpp
+    src/external/imgui/backends/imgui_impl_dx11.cpp
+    src/external/AsyncLogger/src/Logger.cpp
+    src/external/AsyncLogger/src/LogCapture.cpp
+    src/external/AsyncLogger/src/LogStream.cpp
+    src/external/AsyncLogger/src/LogIntermediate.cpp
+    src/external/AsyncLogger/src/LogMessage.cpp
+    src/external/AsyncLogger/src/LogLevel.cpp
     src/gui/frontend/aimbot/Aimbot.cpp
     src/gui/frontend/esp/Esp.cpp
     src/gui/frontend/menu/Menu.cpp
@@ -149,6 +157,7 @@ target_include_directories(CNCS PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include/AsyncLogger
 )
 
 # Precompiled Headers
