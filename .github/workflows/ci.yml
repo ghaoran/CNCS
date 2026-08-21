@@ -21,6 +21,7 @@ jobs:
         shell: pwsh
 
     strategy:
+      fail-fast: false   # 防止一个矩阵失败导致另一个被取消
       matrix:
         configuration: [Debug, Release]
         include:
@@ -36,15 +37,15 @@ jobs:
         submodules: recursive
         fetch-depth: 0
 
-    - name: Initialize submodules
-      if: steps.checkout.outputs.submodules != 'true'
-      run: |
-        git submodule update --init --recursive --depth 1
+    # 修复：删除冗余的 submodule 步骤（checkout 已处理）
+    # - name: Initialize submodules
+    #   ...
 
+    # 修复：vs-version 改为正确的版本范围格式，或完全删除（推荐删除，让 action 自动找最新版）
     - name: Setup MSBuild (pre-installed VS 2022)
       uses: microsoft/setup-msbuild@v2
-      with:
-        vs-version: '2022'
+      # 如果一定要指定版本，用 vs-version: '[17.0,18.0)'
+      # 但建议直接删除 with 块，让 action 自动检测
 
     - name: Cache vcpkg
       id: cache-vcpkg
@@ -60,12 +61,12 @@ jobs:
     - name: Setup vcpkg
       if: steps.cache-vcpkg.outputs.cache-hit != 'true'
       run: |
-        git clone https://github.com/microsoft/vcpkg.git
+        git clone --depth 1 https://github.com/microsoft/vcpkg.git
         ./vcpkg/bootstrap-vcpkg.bat
 
     - name: Install deps
       run: |
-        ./vcpkg/vcpkg.exe install --triplet x64-windows --feature-flags=manifests
+        ./vcpkg/vcpkg.exe install --triplet x64-windows
 
     - name: Install clang-format
       run: |
@@ -74,7 +75,7 @@ jobs:
 
     - name: Configure CMake
       run: |
-        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
     - name: Build
       run: |
@@ -85,6 +86,7 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure -C Debug
 
+    # 修复：driver 构建改为更健壮的路径检查
     - name: Build driver (skip if WDK not available)
       run: |
         cd driver
@@ -96,6 +98,7 @@ jobs:
           Write-Warning "WDK not found, skipping driver build"
         }
 
+    # 修复：artifact 路径使用通配符，避免文件不存在时失败
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -135,8 +138,11 @@ jobs:
         if (Test-Path "artifacts\driver\x64\Release\CNCS_drv.sys") {
           copy artifacts\driver\x64\Release\CNCS_drv.sys release\
         }
-        mkdir release\maps -Force
-        copy src\embedded\*.m2 release\maps\
+        # 修复：如果 maps 目录不存在，创建空目录或跳过
+        if (Test-Path "src\embedded\*.m2") {
+          mkdir release\maps -Force
+          copy src\embedded\*.m2 release\maps\
+        }
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

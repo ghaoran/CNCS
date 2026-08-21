@@ -6,6 +6,5 @@
     "nlohmann-json",
     "zlib",
     "fmt"
-  ],
-  "builtin-baseline": "f6d0b0b13c8e5d4f8b5a5c8e8f3c3d6f1b1e5a5c"
+  ]
 }
