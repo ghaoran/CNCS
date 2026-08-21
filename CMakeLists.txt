@@ -94,7 +94,6 @@ set(CNCS_SOURCES
     src/external/imgui/imgui_draw.cpp
     src/external/imgui/imgui_tables.cpp
     src/external/imgui/imgui_widgets.cpp
-    src/external/imgui/imgui_stdlib.cpp
     src/gui/frontend/aimbot/Aimbot.cpp
     src/gui/frontend/esp/Esp.cpp
     src/gui/frontend/menu/Menu.cpp
