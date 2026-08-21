@@ -96,4 +96,5 @@ struct XorStr {
         for (size_t i = 0; i < N; ++i)
             data[i] = s[i] ^ k;
     }
+    constexpr operator const char* () const { return data; }
 };

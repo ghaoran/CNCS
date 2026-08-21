@@ -56,8 +56,9 @@ public:
     static void Destroy();
     static bool Init();
     
+    // Use const char* format string for better MSVC compatibility
     template<typename... Args>
-    static void Log(eLogLevel level, fmt::format_string<Args...> fmt_str, Args&&... args) {
+    static void Log(eLogLevel level, const char* fmt_str, Args&&... args) {
         static std::mutex mtx;
         std::lock_guard<std::mutex> lock(mtx);
         
