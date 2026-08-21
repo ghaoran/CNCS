@@ -1,3 +1,5 @@
+#pragma once
+
 namespace offsets
 {
 	// client.dll
@@ -100,6 +102,14 @@ namespace offsets
 		constexpr std::ptrdiff_t maxClients = 0x10;
 		constexpr std::ptrdiff_t currentMapName = 0x180;
 		constexpr std::ptrdiff_t currentTime = 0x2C;
+		// CS2 CGlobalVarsBase（Source 2）字段偏移。
+		// intervalPerTick=0x1C：interval_per_tick (float, 服务器 tick 间隔秒数)。
+		// tickRate=0x18：Source 2 globals 在此处为 tickcount (int)。
+		// 注意：tick_rate 更应由 1/interval_per_tick 计算得到；Globals.cpp 若直接
+		// 按 float 读 0x18 读取的是 tickcount，仅作占位并依赖其 fallback 逻辑。
+		// ⚠ 以下两值属逆向推断，请以实际游戏 dump 校准。
+		constexpr std::ptrdiff_t intervalPerTick = 0x1C;
+		constexpr std::ptrdiff_t tickRate = 0x18;
 	}
 
 	namespace signatures

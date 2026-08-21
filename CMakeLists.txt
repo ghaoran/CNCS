@@ -98,6 +98,7 @@ set(CNCS_SOURCES
     src/gui/frontend/esp/Esp.cpp
     src/gui/frontend/menu/Menu.cpp
     src/gui/frontend/overlays/Overlays.cpp
+    src/gui/GuiUtils.cpp
     src/gui/renderer/Renderer.cpp
     src/gui/renderer/window/Window.cpp
     src/main.cpp

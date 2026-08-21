@@ -6,6 +6,12 @@
 
 #pragma once
 
+// 用户态客户端（C++）需要 winioctl.h 中的 CTL_CODE/METHOD_BUFFERED 等。
+// 内核驱动（C，已含 ntddk.h）无需也无法 include <winioctl.h>，故仅 C++ 时引入。
+#ifdef __cplusplus
+#include <winioctl.h>
+#endif
+
 // 设备路径（客户端通过此路径打开驱动句柄）
 #define CNCS_DEVICE_PATH   "\\\\.\\CNCS"
 

@@ -5,6 +5,9 @@
 #include "gui/renderer/window/Window.hpp" // Circular dependency
 #include "assets/fonts/Icons.h"
 
+// GetCJKFontPath 声明
+#include "gui/GuiUtils.hpp"
+
 namespace {
     // 紧凑颜色选择器（无标签，悬停提示），后面自动 SameLine。
     void ColorPicker(const char* id, color_t& color, const char* tip) {

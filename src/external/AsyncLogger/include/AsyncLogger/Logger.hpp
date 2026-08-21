@@ -12,7 +12,7 @@
 #endif
 #include <functional>
 #include <thread>
-#include "shared_queue.hpp"
+#include "concurrency/shared_queue.hpp"
 #include "LogCapture.hpp"
 #include "LogIntermediate.hpp"
 #include "LogLevel.hpp"

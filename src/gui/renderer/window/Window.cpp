@@ -121,7 +121,7 @@ bool Window::SpawnWindow()
 	//wc.style = CS_CLASSDC;
 	wc.style = 0;
 	wc.hInstance = GetModuleHandle(0);
-	wc.lpszClassName = "wa";
+	wc.lpszClassName = L"wa";
 	wc.lpfnWndProc = window_procedure;
 	//wc.cbClsExtra = 0;
 	//wc.cbWndExtra = 0;
@@ -140,8 +140,8 @@ bool Window::SpawnWindow()
 
 	hwnd = CreateWindowEx(
 		WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
-		"wa",
-		"wa",
+		L"wa",
+		L"wa",
 		WS_POPUP | WS_VISIBLE,
 		0, 0, width, height,
 		NULL,
@@ -192,8 +192,8 @@ bool Window::CreateImGui()
 	
 	io.IniFilename = nullptr; // Disable saving to .ini file
 
-	io.ConfigViewportsNoTaskBarIcon = true; // Disable showing in taskbar completely
-	io.ConfigViewportsNoAutoMerge = true;
+	// 多 viewport 任务栏配置：bundled ImGui 1.93.0 WIP 无
+	// ConfigViewportsNoTaskBarIcon/NoAutoMerge，故不设置（overlay 单窗口）。
 
 	// Initialize ImGui for the Win32 library
 	if (!ImGui_ImplWin32_Init(hwnd)) {
@@ -254,14 +254,9 @@ void Window::EndRender()
 	// Render ImGui draw data.
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-	auto io = ImGui::GetIO();
+	// 多 viewport 更新分支：bundled ImGui 1.93.0 WIP 已移除
+	// ImGuiConfigFlags_ViewportsEnable，overlay 为单窗口，无需多平台窗口更新。
 
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-	{
-		ImGui::UpdatePlatformWindows();
-		ImGui::RenderPlatformWindowsDefault();
-	}
-	
 	if (vsync) // Present rendered frame with V-Sync
 		swap_chain->Present(1U, 0U);
 	else // Present rendered frame without V-Sync

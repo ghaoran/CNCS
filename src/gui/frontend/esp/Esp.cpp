@@ -6,6 +6,9 @@
 #include "assets/fonts/WeaponIcons.h"
 #include "assets/fonts/Icons.h"
 
+// GetCJKFontPath 声明
+#include "gui/GuiUtils.hpp"
+
 bool Esp::Init() {
 	return GetInstance().InitImpl();
 }

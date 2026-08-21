@@ -12,7 +12,7 @@ int main()
 {
     c_exception_handler::setup();
 
-    LogHelper::Init();
+    al::LogHelper::Init();
 
     LOGF(INFO, "Hello, CNCS!");
 
@@ -60,7 +60,7 @@ int main()
     Engine::Shutdown();
     Renderer::Destroy();
     LOGF(INFO, "结束，感谢使用！");
-    LogHelper::Destroy();
+    al::LogHelper::Destroy();
     std::cin.get();
     return 0;
 }

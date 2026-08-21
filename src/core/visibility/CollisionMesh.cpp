@@ -9,7 +9,11 @@
 #include <nlohmann/json.hpp>
 #include "zlib.h"
 
+// json 别名避免与 pch_core.hpp（/FI 强制注入）重复定义
+#ifndef CNCS_JSON_ALIAS_DEFINED
+#define CNCS_JSON_ALIAS_DEFINED
 using json = nlohmann::json;
+#endif
 
 namespace {
     // --- glTF componentType ids ---

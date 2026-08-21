@@ -39,6 +39,12 @@ private:
     void ThreadImpl();      // Background render loop
     void DestroyImpl();
 
+    // Private Impl methods (declared but defined in Renderer.cpp)
+    void StartRenderThreadImpl();
+    void StopRenderThreadImpl();
+    void WaitForFrameImpl();
+    void SignalFrameReadyImpl();
+
     void Render();
     bool HandleState();
     bool HandleWindowOrder();

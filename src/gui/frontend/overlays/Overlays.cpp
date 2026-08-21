@@ -4,6 +4,9 @@
 #include "gui/frontend/menu/Menu.hpp" // Circular dependency
 #include "assets/fonts/WeaponIcons.h"
 
+// GetCJKFontPath 声明
+#include "gui/GuiUtils.hpp"
+
 bool Overlays::Init() {
     return GetInstance().InitImpl();
 }

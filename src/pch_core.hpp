@@ -79,7 +79,33 @@ using isize = ptrdiff_t;
 // Common namespace aliases
 namespace fs = std::filesystem;
 namespace chr = std::chrono;
+#ifndef CNCS_JSON_ALIAS_DEFINED
+#define CNCS_JSON_ALIAS_DEFINED
 using json = nlohmann::json;
+#endif
+
+// byte type alias (for Dumper.hpp and memory scanning)
+using byte = unsigned char;
+
+// Engine core types (needed by Engine.hpp, Cache.hpp, Game.hpp, Player.hpp, etc.)
+#include "core/engine/types/Vec2.hpp"
+#include "core/engine/types/Vec3.hpp"
+#include "core/engine/types/Matrix.hpp"
+#include "core/engine/types/Color.hpp"
+#include "core/engine/types/Types.hpp"
+
+// Engine util
+#include "core/util/HighResTimer.hpp"
+#include "core/util/Result.hpp"
+
+// Engine memory
+#include "core/memory/Memory.hpp"
+
+// Config (used by Engine.hpp)
+#include "config/Config.hpp"
+
+// Kernel driver (used by Engine.hpp)
+#include "core/kernel/KdLoader.hpp"
 
 // Logging macros (temporary - will migrate to spdlog/fmt)
 #include <core/logger/LogHelper.hpp>
