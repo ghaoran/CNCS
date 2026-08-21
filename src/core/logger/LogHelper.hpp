@@ -72,7 +72,7 @@ public:
             case eLogLevel::LOG_FATAL:   levelStr = "[FATAL] "; break;
         }
         
-        std::cout << levelStr << fmt::format(fmt_str, std::forward<Args>(args)...) << std::endl;
+        std::cout << levelStr << fmt::format(fmt::runtime(fmt_str), std::forward<Args>(args)...) << std::endl;
     }
     
 private:

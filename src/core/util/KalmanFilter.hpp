@@ -273,13 +273,11 @@ private:
                   + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
         
         if (std::abs(det) < 1e-6f) {
-            // Singular - return identity
-            for (int i = 0; i < MeasDim; ++i) {
-                for (int j = 0; j < MeasDim; ++j) {
-                    inv[i][j] = (i == j) ? 1.0f : 0.0f;
-                }
-            }
-            return inv;
+            // Singular matrix: return a zero matrix so the caller's gain
+            // K = P*H^T*S^-1 becomes zero and the update is skipped. Returning
+            // identity here would inject a huge, incorrect correction into the
+            // state (P diag can be ~1000).
+            return inv; // zero-initialized
         }
         
         float inv_det = 1.0f / det;

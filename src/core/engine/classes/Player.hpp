@@ -41,8 +41,8 @@ public:
     uint64_t steam_id{};
 
     Weapon weapon;
-    int32_t ammo;
-    bool is_reloading;
+    int32_t ammo = -1;        // -1 = unknown / weapon read failed
+    bool is_reloading = false;
 
     // Fixed-size skeleton buffer: avoids per-player heap allocations in the
     // per-frame cache copy. skeleton_valid mirrors "bone_list was filled"

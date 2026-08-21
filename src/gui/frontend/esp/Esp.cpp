@@ -507,7 +507,11 @@ void Esp::RenderPlayerTracers(Player source, Player player, bool mate) {
 		viewDir.y = matrix[1][0] * dir.x + matrix[1][1] * dir.y + matrix[1][2] * dir.z;
 		viewDir.z = matrix[2][0] * dir.x + matrix[2][1] * dir.y + matrix[2][2] * dir.z;
 
-		if (viewDir.z > 0.0f)
+		// Flip the tracer direction only when the player is *behind* the camera
+		// (view-space depth z < 0). The previous check (z > 0) flipped for
+		// off-screen players in front of the camera as well, mirroring the
+		// tracer to the wrong side of the screen.
+		if (viewDir.z < 0.0f)
 		{
 			viewDir.x = -viewDir.x;
 			viewDir.y = -viewDir.y;

@@ -44,7 +44,7 @@ int main()
     
     // Main thread can do other work or just wait
     // For now, just wait for the render thread to finish
-    while (Renderer::IsOpen() || !Renderer::IsOpen()) {
+    while (Renderer::IsOpen()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         // Check if game window is still valid
         auto p = Engine::GetProcess();

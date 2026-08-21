@@ -13,6 +13,9 @@
 // ImGui configuration
 #define IMGUI_DEFINE_MATH_OPERATORS
 
+// Enable M_PI constant in <cmath>
+#define _USE_MATH_DEFINES
+
 // Standard library - core headers only
 #include <cstdint>
 #include <cstddef>
@@ -55,6 +58,9 @@
 #include <nlohmann/json.hpp>
 #include <fmt/core.h>
 #include <fmt/format.h>
+
+// ImGui core (needed by Color.hpp, Vec2.hpp for ImColor/ImVec2/ImVec4)
+#include "external/imgui/imgui.h"
 
 // Project-wide type aliases
 using u8 = uint8_t;

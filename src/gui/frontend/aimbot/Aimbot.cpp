@@ -376,11 +376,15 @@ void Aimbot::Run() {
         return;
     }
 
-    // Target switched: drop leftover fractional movement.
+    // Target switched: drop leftover fractional movement and fully reset the
+    // Kalman filter (both flags together) so try_aim re-initializes it with
+    // the new target's measurement instead of updating a state trained on the
+    // old target.
     if (acc_target_index != best_index) {
         acc_x = acc_y = 0.f;
         acc_target_index = best_index;
         s_kalman_initialized = false;
+        s_last_target_index = -1;
     }
 
     // Dead zone: only stop when the crosshair is already on the target AND the

@@ -71,11 +71,38 @@ endif()
 # -----------------------------------------------------------------------------
 # Source File Groups (for IDE organization)
 # -----------------------------------------------------------------------------
-file(GLOB_RECURSE CNCS_SOURCES
-    "src/*.cpp"
-    "src/*.c"
-    "src/**/*.cpp"
-    "src/**/*.c"
+# Explicit source file list - avoids picking up imgui examples, json tests, etc.
+set(CNCS_SOURCES
+    src/common.cpp
+    src/config/Config.cpp
+    src/core/engine/Engine.cpp
+    src/core/engine/cache/Cache.cpp
+    src/core/engine/classes/Bomb.cpp
+    src/core/engine/classes/Game.cpp
+    src/core/engine/classes/Globals.cpp
+    src/core/engine/classes/ObserverServices.cpp
+    src/core/engine/classes/Player.cpp
+    src/core/engine/classes/Weapon.cpp
+    src/core/kernel/KdLoader.cpp
+    src/core/logger/LogHelper.cpp
+    src/core/memory/Memory.cpp
+    src/core/offsets/Dumper.cpp
+    src/core/visibility/CollisionMesh.cpp
+    src/core/visibility/Visibility.cpp
+    src/external/imgui/imgui.cpp
+    src/external/imgui/imgui_demo.cpp
+    src/external/imgui/imgui_draw.cpp
+    src/external/imgui/imgui_tables.cpp
+    src/external/imgui/imgui_widgets.cpp
+    src/external/imgui/imgui_stdlib.cpp
+    src/gui/frontend/aimbot/Aimbot.cpp
+    src/gui/frontend/esp/Esp.cpp
+    src/gui/frontend/menu/Menu.cpp
+    src/gui/frontend/overlays/Overlays.cpp
+    src/gui/renderer/Renderer.cpp
+    src/gui/renderer/window/Window.cpp
+    src/main.cpp
+    src/pch_core.cpp
 )
 
 file(GLOB_RECURSE CNCS_HEADERS

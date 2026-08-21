@@ -20,6 +20,14 @@ namespace {
     constexpr int VOXEL_CELL_SIZE = 8;                 // voxel 单元格大小 (units)
     constexpr int SMOKE_NAME_CHECK_CHARS = 8;          // 烟雾类名检查字符数
 
+#ifndef _DEBUG
+    // Adaptive refresh interval (ms), updated after each snapshot publish.
+    // File-scope so the throttle check and the update share one variable
+    // (a block-scope static per branch previously made release builds stick
+    // to the 2.0ms default forever).
+    float g_cached_interval_ms = 2.0f;
+#endif
+
     // 从 CS2 烟雾 voxel bitfield 计算 AABB（Axis-Aligned Bounding Box）。
     // 每个 byte 含 8 个 voxel bit，voxel 格子边长 8 units，以引爆点为中心。
     // 成功返回 true 并填充 out；无占用体素返回 false。
@@ -89,10 +97,11 @@ bool Cache::RefreshImpl() {
 #ifdef _DEBUG
         const auto interval = cfg::dev::cache_refresh_rate * 1ms;
 #else
-        // Adaptive refresh: target half the frame time (2x frame rate)
-        // Use cached interval from previous snapshot
-        static float s_cached_interval = 2.0f;
-        const auto interval = std::chrono::duration<float, std::milli>(s_cached_interval);
+        // Adaptive refresh: target half the frame time (2x frame rate).
+        // Uses the file-scope variable updated in the publish block below;
+        // (previously a second local static was declared there, so release
+        // builds were stuck at the 2.0f default).
+        const auto interval = std::chrono::duration<float, std::milli>(g_cached_interval_ms);
 #endif
 
         if (now - last < interval)
@@ -264,13 +273,11 @@ bool Cache::RefreshImpl() {
         current = std::move(snap);
         last = now;
         
-        // Update cached frame time for next iteration's adaptive interval
-        // Target: refresh at 2x frame rate (half frame time), minimum 1ms, maximum 5ms
-        float frame_ms = current->globals.frame_time;
-        float target_interval_ms = std::clamp(frame_ms * 0.5f, 1.0f, 5.0f);
-        // Store for next iteration (we'll use a static variable in the throttle section)
-        static float s_cached_interval = 2.0f;
-        s_cached_interval = target_interval_ms;
+#ifndef _DEBUG
+        // Update cached interval for next iteration's adaptive throttle.
+        // Target: refresh at 2x frame rate (half frame time), clamped 1-5ms.
+        g_cached_interval_ms = std::clamp(current->globals.frame_time * 0.5f, 1.0f, 5.0f);
+#endif
     }
 
     return true;

@@ -91,8 +91,10 @@ inline std::optional<PredictionResult> predict_impact(
     
     if (distance < 1.0f) return std::nullopt;
     
-    // Initial estimate: time = distance / velocity
-    float time = distance / (ballistics.initial_velocity * units_to_meters);
+    // Initial estimate: time = distance / velocity.
+    // Convert unit-distance to meters first; dividing by (velocity * k) was
+    // wrong (initial estimate ended up ~39x too large and always hit max_time).
+    float time = (distance * units_to_meters) / ballistics.initial_velocity;
     time = std::min(time, max_time);
     
     // Iterative solver for bullet drop and travel time
