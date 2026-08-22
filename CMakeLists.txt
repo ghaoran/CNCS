@@ -51,9 +51,11 @@ set(CMAKE_CXX_FLAGS_RELEASE "/MD /O2 /Ob2 /GL /DNDEBUG")
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 
 # Output directories
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/${CMAKE_BUILD_TYPE}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/${CMAKE_BUILD_TYPE}")
+# 使用 $<CONFIG> 生成器表达式：Visual Studio 多配置生成器下 CMAKE_BUILD_TYPE 为空，
+# 会导致产物落在 build/bin/Release/Release/CNCS.exe 双目录；此处直接落在 build/bin/<Config>。
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/$<CONFIG>")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib/$<CONFIG>")
 
 # -----------------------------------------------------------------------------
 # vcpkg Integration
@@ -230,6 +232,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
 endif()
 
 # Copy driver .sys to output directory (built separately, only if exists)
+# 多配置生成器（Visual Studio）下 CMAKE_BUILD_TYPE 为空，路径回退到 Release。
 set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/${CMAKE_BUILD_TYPE}/CNCS_drv.sys")
 if(NOT EXISTS "${DRIVER_SYS_PATH}")
     set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/Release/CNCS_drv.sys")

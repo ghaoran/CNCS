@@ -36,7 +36,7 @@ public:
     bool localplayer = false;
     bool has_c4 = false;
 
-    char name[32];
+    char name[32] = {};
     //std::string name;
     uint64_t steam_id{};
 
@@ -50,14 +50,14 @@ public:
     std::array<bone_pos, 30> bone_list;
     bool skeleton_valid = false;
 
-    uintptr_t pawn_controller_addr; // pawn handle（32 位实体句柄）
+    uintptr_t pawn_controller_addr = 0; // pawn handle（32 位实体句柄）
     ObserverServices observer_services;
 private:
-    uintptr_t list_entry;
-    uintptr_t entity_list;
+    uintptr_t list_entry = 0;
+    uintptr_t entity_list = 0;
 
-    uintptr_t pawn;
-    uintptr_t controller;
+    uintptr_t pawn = 0;
+    uintptr_t controller = 0;
 private:
     bool GetPawn();
     bool GetController();

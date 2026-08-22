@@ -132,14 +132,19 @@ bool Player::UpdatePawn() {
 	this->team = blk1[offsets::pawn::m_iTeamNum - b1];
 	this->ducking = (blk1[offsets::pawn::m_fFlags - b1] & 0x2) != 0;
 
-	// Batch 2: pos + vel  (0x13B8..0x13C4 ≈ 28 bytes) — nearby, one read.
-	uint8_t blk_pv[28];
-	if (!p->read_raw(pawn + offsets::pawn::m_vOldOrigin, blk_pv, 28))
+	// Batch 2: pos + vel。二者偏移相差约 0xC40 字节，必须分开读取，
+	// 不能共用一个 28 字节栈缓冲并按相对偏移取 vel（会越界）。
+	uint8_t blk_pv[12];
+	if (!p->read_raw(pawn + offsets::pawn::m_vOldOrigin, blk_pv, 12))
 		return false;
 	std::memcpy((void*)&this->pos, blk_pv, 12);
 	if (this->pos.zero())
 		return false;
-	std::memcpy((void*)&this->vel, blk_pv + (offsets::pawn::m_vecAbsVelocity - offsets::pawn::m_vOldOrigin), 12);
+
+	uint8_t blk_vel[12];
+	if (!p->read_raw(pawn + offsets::pawn::m_vecAbsVelocity, blk_vel, 12))
+		return false;
+	std::memcpy((void*)&this->vel, blk_vel, 12);
 
 	// Batch 3: weapon ptr, scoped, defusing, spotted, flash, armor  (0x1208..0x1CA8 ≈ 672 bytes).
 	constexpr uintptr_t b3 = offsets::pawn::m_pWeaponServices;               // 0x1208

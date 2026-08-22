@@ -11,8 +11,8 @@ public:
 public:
     view_matrix_t view_matrix;
 
-    uintptr_t entity_list;
-    uintptr_t list_entry;
+    uintptr_t entity_list = 0;
+    uintptr_t list_entry = 0;
 private:
-    uintptr_t address;
+    uintptr_t address = 0;
 };
