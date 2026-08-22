@@ -39,7 +39,7 @@
 #define CNCS_EVENT_INVALID_PARAMETER    9
 
 // 全局 ETW 注册句柄
-static REGHANDLE g_EtwRegHandle = NULL;
+static REGHANDLE g_EtwRegHandle = 0;   // REGHANDLE 为 ULONG_PTR，赋 0 而非 NULL(void*) 避免 C4047
 
 // ETW 事件写入辅助函数
 static VOID
@@ -52,23 +52,27 @@ EtwWriteEvent(
     _In_ PCSTR FormatString,
     ...
 ) {
-    if (g_EtwRegHandle == NULL)
+    if (g_EtwRegHandle == 0)
         return;
+
+    // 内核驱动暂未使用结构化 ETW（EventWriteString 需 manifest），
+    // 参数仅用于未来扩展，抑制未引用告警（/WX 会把 C4100 当错误）。
+    UNREFERENCED_PARAMETER(EventId);
+    UNREFERENCED_PARAMETER(EventVersion);
+    UNREFERENCED_PARAMETER(EventChannel);
+    UNREFERENCED_PARAMETER(EventLevel);
+    UNREFERENCED_PARAMETER(EventKeywords);
 
     va_list args;
     va_start(args, FormatString);
     
     // 使用 EventWriteTransfer 或 EventWriteString (简化版本)
     // 这里使用 EventWriteString 作为示例，实际生产应使用 manifest 定义的结构化事件
-    ANSI_STRING ansiStr;
     CHAR buffer[512];
-    RtlInitAnsiStringEx(&ansiStr, buffer);
     
-    // 格式化消息
-    va_list argsCopy;
-    va_copy(argsCopy, args);
-    _vsnprintf_s(buffer, sizeof(buffer), _TRUNCATE, FormatString, argsCopy);
-    va_end(argsCopy);
+    // 格式化消息（内核 C 无 C99 va_copy，直接用 args 单次格式化即可；
+    // 后续仅用 buffer 输出，不再复用 va_list）
+    _vsnprintf_s(buffer, sizeof(buffer), _TRUNCATE, FormatString, args);
     
     // 写入 ETW 事件 (EventWriteString 需要 Windows 8+)
     // EventWriteString(g_EtwRegHandle, EventLevel, EventKeywords, 0, NULL, &ansiStr);
@@ -327,7 +331,7 @@ HandleReadMemory(
     // 6. 使用 ProbeForRead 验证用户缓冲区（METHOD_BUFFERED 已由 I/O 管理器验证，
     // 但显式验证可在驱动上下文中提前捕获无效地址）
     __try {
-        ProbeForRead(outBuffer, outSize, TYPE_ALIGNMENT(char));
+        ProbeForRead(outBuffer, outSize, 1);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();
         DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
@@ -533,7 +537,7 @@ HandleGetBaseModule(
 
     // 5. ProbeForRead 验证用户缓冲区
     __try {
-        ProbeForRead(Irp->AssociatedIrp.SystemBuffer, inSize, TYPE_ALIGNMENT(char));
+        ProbeForRead(Irp->AssociatedIrp.SystemBuffer, inSize, 1);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();
         DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
@@ -604,7 +608,7 @@ HandleFindProcess(
 
     // ProbeForRead 验证用户缓冲区
     __try {
-        ProbeForRead(Irp->AssociatedIrp.SystemBuffer, inSize, TYPE_ALIGNMENT(char));
+        ProbeForRead(Irp->AssociatedIrp.SystemBuffer, inSize, 1);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return GetExceptionCode();
     }
@@ -705,21 +709,18 @@ DispatchCreateClose(
         // 安全检查：验证调用进程的完整性级别
         // 拒绝低完整性级别进程（如沙箱、受限浏览器标签页）
         // 仅允许 Medium 及以上完整性级别
-        
-        HANDLE token = NULL;
-        NTSTATUS status = PsOpenProcessToken(PsGetCurrentProcess(), TOKEN_QUERY, &token);
-        if (NT_SUCCESS(status)) {
-            // 这里可以添加完整性级别检查
-            // 简化版本：仅记录调用者 PID
-            HANDLE pid = PsGetCurrentProcessId();
-            DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL,
-                "[CNCS] Device opened by PID: %lu\n", HandleToULong(pid));
-            
-            // ETW 事件：设备打开
-            ETW_LOG(CNCS_EVENT_DEVICE_OPEN, 4, "Device opened by PID %lu", HandleToULong(pid));
-            
-            ZwClose(token);
-        }
+        //
+        // 注：token API（PsOpenProcessToken/ZwOpenProcessToken 等）位于
+        // ntifs.h，而 ntifs.h 与 wdmsec.h/ntddk.h 同时包含会触发重定义，
+        // 且完整的完整性级别判断需配套 user-mode 函数。此处保守地仅记录
+        // 打开者 PID，不做完整性过滤（保持驱动可编译、行为可预期）。
+
+        HANDLE pid = PsGetCurrentProcessId();
+        DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL,
+            "[CNCS] Device opened by PID: %lu\n", HandleToULong(pid));
+
+        // ETW 事件：设备打开
+        ETW_LOG(CNCS_EVENT_DEVICE_OPEN, 4, "Device opened by PID %lu", HandleToULong(pid));
         
         // 可选：验证调用者的签名证书（需要配合用户态组件）
         // 如果证书不匹配，返回 STATUS_ACCESS_DENIED
@@ -786,9 +787,9 @@ DriverUnload(
     ETW_LOG(CNCS_EVENT_DRIVER_UNLOAD, 4, "Driver unloading");
 
     // 注销 ETW Provider
-    if (g_EtwRegHandle != NULL) {
-        EventUnregister(g_EtwRegHandle);
-        g_EtwRegHandle = NULL;
+    if (g_EtwRegHandle != 0) {
+        EtwUnregister(g_EtwRegHandle);   // 内核驱动用 EtwUnregister，非用户态 EventUnregister
+        g_EtwRegHandle = 0;
     }
 
     // 等待所有挂起的 IRP 完成（防止卸载竞态）
@@ -840,7 +841,7 @@ DriverEntry(
 
     // 注册 ETW Provider
     GUID providerGuid = CNCS_ETW_PROVIDER_GUID;
-    status = EventRegister(&providerGuid, NULL, NULL, &g_EtwRegHandle);
+    status = EtwRegister(&providerGuid, NULL, NULL, &g_EtwRegHandle);   // 内核驱动用 EtwRegister
     if (!NT_SUCCESS(status)) {
         DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_WARNING_LEVEL,
             "[CNCS] ETW registration failed: 0x%08X\n", status);
@@ -883,8 +884,8 @@ DriverEntry(
         DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_ERROR_LEVEL,
             "[CNCS] IoCreateDevice failed: 0x%08X\n", status);
         if (g_EtwRegHandle) {
-            EventUnregister(g_EtwRegHandle);
-            g_EtwRegHandle = NULL;
+            EtwUnregister(g_EtwRegHandle);
+            g_EtwRegHandle = 0;
         }
         return status;
     }
@@ -898,8 +899,8 @@ DriverEntry(
         IoDeleteDevice(g_DeviceObject);
         g_DeviceObject = NULL;
         if (g_EtwRegHandle) {
-            EventUnregister(g_EtwRegHandle);
-            g_EtwRegHandle = NULL;
+            EtwUnregister(g_EtwRegHandle);
+            g_EtwRegHandle = 0;
         }
         return status;
     }
