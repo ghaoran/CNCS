@@ -10,7 +10,7 @@ on:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
-  VCPKG_DEFAULT_TRIPLET: x64-windows
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static
 
 jobs:
   build:
@@ -77,9 +77,11 @@ jobs:
     - name: Build driver (skip if WDK not available)
       run: |
         cd driver
-        $WdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\build\10.0.22621.0"
-        if (Test-Path $WdkPath) {
-          Write-Host "WDK found, building driver..."
+        $WdkBuildDir = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
+        $WdkPath = Get-ChildItem $WdkBuildDir -Directory -ErrorAction SilentlyContinue |
+                     Sort-Object Name | Select-Object -Last 1 -ExpandProperty FullName
+        if ($WdkPath) {
+          Write-Host "WDK found at $WdkPath, building driver..."
           powershell -ExecutionPolicy Bypass -File build_driver.ps1 -Configuration ${{ matrix.configuration }} -TestSign
         } else {
           Write-Warning "WDK not found, skipping driver build"

@@ -35,10 +35,13 @@ if (-not (Test-Path $ProjectFile)) {
 }
 
 # Check for WDK
-$WdkVersion = "10.0.22621.0"
-$WdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\build\$WdkVersion"
-if (-not (Test-Path $WdkPath)) {
-    Write-Warning "WDK $WdkVersion not found at $WdkPath"
+# 自动探测最新可用 WDK build 目录（与驱动工程一致，不锁定特定版本号）
+$WdkBuildRoot = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
+$WdkPath = Get-ChildItem $WdkBuildRoot -Directory -ErrorAction SilentlyContinue |
+             Sort-Object Name -Descending | Select-Object -First 1 -ExpandProperty FullName
+
+if (-not $WdkPath -or -not (Test-Path $WdkPath)) {
+    Write-Warning "WDK not found under $WdkBuildRoot"
     Write-Warning "Driver build may fail without WDK installed"
 }
 

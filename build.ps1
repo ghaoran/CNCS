@@ -77,7 +77,7 @@ $CMakeArgs = @(
     "-A", $Architecture
     "-DCMAKE_BUILD_TYPE=$Configuration"
     "-DCMAKE_TOOLCHAIN_FILE=$ToolchainFile"
-    "-DVCPKG_TARGET_TRIPLET=x64-windows"
+    "-DVCPKG_TARGET_TRIPLET=x64-windows-static"
 )
 
 if ($RunTests) {

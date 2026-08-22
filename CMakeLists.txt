@@ -18,6 +18,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # MSVC-specific settings
 if(MSVC)
+    # Static CRT（/MT /MTd）：静态链接运行时，与 x64-windows-static triplet 配套，
+    # 无需随发布带 vcruntime/ucrt DLL。
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     # Warning level 4 (equivalent to /W4) but suppress noisy ones
     add_compile_options(/W4 /permissive- /Zc:__cplusplus /Zc:inline /Zc:strictStrings /Zc:throwingNew)
     # Disable specific warnings that are noisy in third-party code
@@ -41,11 +44,13 @@ endif()
 # -----------------------------------------------------------------------------
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 
-# Debug: /MDd = debug CRT (defines _DEBUG automatically), /Zi = PDB, /Ob0 = no inline, /Od = no opt, /RTC1 = runtime checks
-set(CMAKE_CXX_FLAGS_DEBUG "/MDd /Zi /Ob0 /Od /RTC1 /D_DEBUG")
+# 静态链接 CRT：/MT 多线程静态（无需随程序带 vcruntime/ucrt DLL），
+# 与 vcpkg 的 x64-windows-static triplet 配套（fmt/zlib 等静态库不再需 DLL）。
+# Debug: /MTd = debug CRT (defines _DEBUG automatically), /Zi = PDB, /Ob0 = no inline, /Od = no opt, /RTC1 = runtime checks
+set(CMAKE_CXX_FLAGS_DEBUG "/MTd /Zi /Ob0 /Od /RTC1 /D_DEBUG")
 
-# Release: /MD = release CRT, /O2 = max speed, /Ob2 = inline any, /GL = LTCG, /DNDEBUG = no asserts
-set(CMAKE_CXX_FLAGS_RELEASE "/MD /O2 /Ob2 /GL /DNDEBUG")
+# Release: /MT = release CRT, /O2 = max speed, /Ob2 = inline any, /GL = LTCG, /DNDEBUG = no asserts
+set(CMAKE_CXX_FLAGS_RELEASE "/MT /O2 /Ob2 /GL /DNDEBUG")
 
 # Whole Program Optimization for Release
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
