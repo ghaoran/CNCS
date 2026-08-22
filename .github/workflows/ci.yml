@@ -89,8 +89,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CNCS-${{ matrix.configuration }}
+        # 上传整个输出目录：CNCS.exe + vcpkg 部署的同目录 z.dll/fmt.dll + .sys
         path: |
-          build/bin/${{ matrix.configuration }}/CNCS.exe
+          build/bin/${{ matrix.configuration }}/
           driver/x64/${{ matrix.configuration }}/CNCS_drv.sys
         retention-days: 30
         if-no-files-found: ignore
@@ -125,7 +126,8 @@ jobs:
     - name: Package
       run: |
         mkdir release -Force
-        copy artifacts\bin\Release\CNCS.exe release\
+        # 复制 Release 目录内全部内容（CNCS.exe + z.dll/fmt.dll 等依赖）
+        Copy-Item "artifacts\bin\Release\*" release\ -Recurse -Force
         if (Test-Path "artifacts\driver\x64\Release\CNCS_drv.sys") {
           copy artifacts\driver\x64\Release\CNCS_drv.sys release\
         }
