@@ -672,6 +672,11 @@ HandleFindProcess(
             RtlCopyMemory(nameBuf, current->ImageName.Buffer, copyLen);
             nameBuf[copyLen / sizeof(wchar_t)] = L'\0';
 
+            // 调试日志：打印驱动枚举到的每个进程名
+            DbgPrintEx(DPFLTR_DEFAULT_ID, DPFLTR_INFO_LEVEL,
+                "[CNCS] Enum process: PID=%lu, Name=%ws\n",
+                (ULONG)(ULONG_PTR)current->UniqueProcessId, nameBuf);
+
             if (_wcsicmp(nameBuf, request->process_name) == 0) {
                 request->pid = (ULONG64)(ULONG_PTR)current->UniqueProcessId;
                 status = STATUS_SUCCESS;
