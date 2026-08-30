@@ -206,7 +206,7 @@ bool Renderer::HandleState() {
             SetForegroundWindow(Engine::GetProcess()->hwnd_);
 
         Window::SetClickthrough(Window::hwnd, !this->isOpen);
-        LOGF(VERBOSE, "捕获到 Insert 或右Shift，菜单状态切换为 {}", this->isOpen);
+        LOGF(VERBOSE, "捕获到 Insert 或右Shift，菜单状态切换为 {}", this->isOpen.load());
 
         // 使用独立线程确保进程退出时不会崩溃
         if (g_config_writer.joinable())
