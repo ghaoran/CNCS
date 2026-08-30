@@ -29,7 +29,6 @@ public:
 	static void StartRender();
 	static void EndRender();
 
-	static bool vsync;
 	static HWND hwnd;
 	static HWND viewport;
 	static WNDCLASSEX wc;
