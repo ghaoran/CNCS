@@ -26,7 +26,7 @@ jobs:
         configuration: [Debug, Release]
         include:
           - configuration: Debug
-            cmake_args: "-DCMAKE_BUILD_TYPE=Debug"
+            cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON"
           - configuration: Release
             cmake_args: "-DCMAKE_BUILD_TYPE=Release"
 
@@ -88,14 +88,21 @@ jobs:
     - name: Format check
       continue-on-error: true
       run: |
-        $clangFormat = Get-Command clang-format -ErrorAction SilentlyContinue
-        if (-not $clangFormat) {
-          Write-Warning "clang-format not found, skipping format check"
-          exit 0
-        }
-        $files = Get-ChildItem -Recurse -Path src -Include *.cpp,*.hpp,*.h,*.c | Select-Object -ExpandProperty FullName
+        # runner PATH 上的 clang-format 可能是无法启动的 Store stub,
+        # 用 vswhere 定位 VS 自带的真实 clang-format.exe
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (-not (Test-Path $vswhere)) { Write-Warning "vswhere not found, skipping format check"; exit 0 }
+        $vsPath = & $vswhere -latest -property installationPath
+        if (-not $vsPath) { Write-Warning "VS not found, skipping format check"; exit 0 }
+        $clangFormat = Get-ChildItem "$vsPath\VC\Tools\Llvm" -Recurse -Filter clang-format.exe |
+                         Select-Object -First 1 -ExpandProperty FullName
+        if (-not $clangFormat) { Write-Warning "clang-format not found in VS, skipping format check"; exit 0 }
+        Write-Host "Using $clangFormat"
+        $files = Get-ChildItem -Recurse -Path src -Include *.cpp,*.hpp,*.h,*.c |
+                   Where-Object { $_.FullName -notmatch '\\external\\' } |
+                   Select-Object -ExpandProperty FullName
         if ($files) {
-          & $clangFormat.Source --dry-run --Werror $files
+          & $clangFormat --dry-run --Werror $files
         }
 
   release:

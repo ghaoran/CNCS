@@ -71,7 +71,7 @@ bool Config::ReadImpl() {
 		cfg::aimbot::key = data["aim"].value("key", 0x02);
 		cfg::aimbot::fov = std::clamp(data["aim"].value("fov", 200.f), 1.f, 1800.f);
 		cfg::aimbot::smoothing = std::clamp(data["aim"].value("smoothing", 0.3f), 0.f, 1.f);
-		cfg::aimbot::bone = data["aim"].value("bone", 7);
+		cfg::aimbot::bone = std::clamp(data["aim"].value("bone", 7), 0, 29); // bone_list 固定 30 根骨骼
 		cfg::aimbot::show_fov = data["aim"].value("show_fov", true);
 		cfg::aimbot::visible_only = data["aim"].value("visible_only", false);
 		cfg::aimbot::smart_bone = data["aim"].value("smart_bone", true);
