@@ -30,7 +30,7 @@ bool Config::ReadImpl() {
 	std::ifstream f(ConfigPath());
 
 	if (!f.good()) {
-		LOGF(FATAL, "配置文件不存在，正在创建新的");
+		LOGF(INFO, "配置文件不存在，正在创建默认配置");
 		WriteImpl();
 		return false;
 	}

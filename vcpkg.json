@@ -5,6 +5,7 @@
   "dependencies": [
     "nlohmann-json",
     "zlib",
-    "fmt"
+    "fmt",
+    "catch2"
   ]
 }

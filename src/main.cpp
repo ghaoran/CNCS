@@ -41,10 +41,11 @@ int main()
 
     // Start render thread (non-blocking)
     Renderer::StartRenderThread();
-    
-    // Main thread can do other work or just wait
-    // For now, just wait for the render thread to finish
-    while (Renderer::IsOpen()) {
+
+    // 等待渲染线程结束。注意不能用 IsOpen()（那是菜单开关状态，
+    // 初始为 false 会导致启动即退出）；IsRunning() 在用户按 End、
+    // 覆盖层窗口关闭或游戏窗口失效时转为 false。
+    while (Renderer::IsRunning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         // Check if game window is still valid
         auto p = Engine::GetProcess();

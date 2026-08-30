@@ -21,6 +21,7 @@ public:
 
     static bool IsOpen();
     static bool IsFocused();
+    static bool IsRunning();
     
     // Frame synchronization
     static void WaitForFrame();      // Main thread waits for frame completion

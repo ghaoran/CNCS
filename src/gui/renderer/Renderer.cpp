@@ -42,6 +42,10 @@ bool Renderer::IsOpen() {
     return GetInstance().isOpen;
 }
 
+bool Renderer::IsRunning() {
+    return GetInstance().isRunning;
+}
+
 bool Renderer::IsFocused() {
     return GetInstance().isFocused;
 }
