@@ -18,11 +18,10 @@ CS2 外部辅助工具（汉化版）。包含 ESP 透视、自瞄（鼠标模�
 - **世界功能**：观战列表、炸弹计时、雷达、十字准星、速度图表
 
 ### 🛡️ 安全与隐蔽
-- **内核驱动只读**：仅 `MmCopyVirtualMemory` 读取内存，不写游戏内存
+- **用户态读取**：`OpenProcess` + `ReadProcessMemory` 只读游戏内存，不写内存，无需内核驱动
 - **完整性校验**：代码段 CRC32、关键函数哈希、数据哨兵值
 - **反调试检测**：PEB BeingDebugged、NtGlobalFlag、硬件断点、时间检测
 - **内存保护**：关键数据 Guard Pages、敏感数据零化、关键代码段运行时加密
-- **通信加密**：IOCTL 动态码、请求/响应 AES-GCM 加密、ECDH 会话密钥
 
 ### ⚡ 性能优化
 - **双缓冲快照**：引擎线程构建，渲染线程零拷贝读取 (`shared_ptr` 无锁发布)
@@ -41,7 +40,6 @@ CS2 外部辅助工具（汉化版）。包含 ESP 透视、自瞄（鼠标模�
 - **CMake 3.25+**
 - **vcpkg** (包管理器)
 - **Windows 10 SDK** (10.0.22621+)
-- **Windows Driver Kit (WDK)** 10.0.22621+ (驱动开发)
 
 ### 依赖安装
 ```bash
@@ -65,15 +63,6 @@ git clone https://github.com/microsoft/vcpkg.git
 
 # 或使用批处理脚本
 .\build.bat Release
-```
-
-### 驱动构建与签名
-```powershell
-# 测试签名模式 (需 bcdedit /set testsigning on + 重启)
-.\driver\build_driver.bat Release testsign
-
-# 生产签名 (需 EV 证书)
-.\driver\build_driver.bat Release sign certthumbprint=<拇指印>
 ```
 
 ---
@@ -157,15 +146,11 @@ CNCS/ (42MB 含嵌入资源)
 ├── CMakeLists.txt / vcpkg.json / build.ps1 / build.bat
 ├── .clang-format / .editorconfig / .github/workflows/ci.yml
 ├── CONTRIBUTING.md / LICENSE / README.md
-├── driver/
-│   ├── CNCS_drv.c (918 行，已强化)
-│   ├── CNCS_drv.vcxproj
-│   ├── build_driver.ps1 / sign_driver.ps1
-├── src/ (86 源文件, 15441 行)
+├── src/ (84 源文件, 14500+ 行)
 │   ├── core/util/ (Result/HighResTimer/KalmanFilter/Ballistics)
 │   ├── core/engine/ (Engine/Cache/Classes/Types)
 │   ├── core/visibility/ (CollisionMesh/Visibility)
-│   ├── core/kernel/ (KdLoader)
+│   ├── core/memory/ (pProcess 用户态内存读取)
 │   ├── gui/ (Renderer/前端模块)
 │   ├── embedded/ (7 张地图 .m2 ~42MB)
 │   └── external/AsyncLogger/

@@ -37,7 +37,7 @@ int main()
     }
     
     LOGF(INFO, "一切就绪，请确保游戏不是全屏模式（需全屏窗口化）！");
-    LOGF(INFO, "内核模式已启用 — 内存读取通过驱动完成");
+    LOGF(INFO, "用户态读取模式 — 内存读取通过 ReadProcessMemory 完成");
 
     // Start render thread (non-blocking)
     Renderer::StartRenderThread();

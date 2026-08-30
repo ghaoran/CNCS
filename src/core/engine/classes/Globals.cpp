@@ -18,6 +18,9 @@ bool Globals::Update() {
 	this->current_time = p->read<float>(this->address + offsets::global::currentTime);
 
 	this->max_clients = p->read<int>(this->address + offsets::global::maxClients);
+	// clamp 到合法范围：读取失败返回 0，垃圾值会导致 Cache::RefreshImpl
+	// 的 reserve/循环失控（CS2 服务器上限 64 人）。
+	this->max_clients = std::clamp(this->max_clients, 0, 64);
 	this->in_match = this->max_clients > 1; // In the lobby, it seems that it still counts one
 
 	auto map_name_addr = p->read<DWORD64>(this->address + offsets::global::currentMapName);

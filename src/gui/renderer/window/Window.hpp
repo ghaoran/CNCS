@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <d3d11.h>
 #include <dwmapi.h>
 #include <imgui/backends/imgui_impl_dx11.h>
@@ -50,6 +51,9 @@ public:
 	static ID3D11RenderTargetView* render_targetview;
 
 	inline static RECT bounds;
-	inline static bool shouldRun = true;
+	// vsync：主线程 Init 写、渲染线程 Present 读；shouldRun：渲染线程
+	// 消息循环/窗口过程写读。均用 atomic 消除跨线程 data race。
+	inline static std::atomic<bool> vsync{ false };
+	inline static std::atomic<bool> shouldRun{ true };
 
 };

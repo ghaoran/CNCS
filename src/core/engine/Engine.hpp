@@ -4,7 +4,6 @@
 #include <memory>
 #include "config/Config.hpp"
 #include "core/memory/Memory.hpp"
-#include "core/kernel/KdLoader.hpp"
 #include "core/util/Result.hpp"
 #include "core/util/HighResTimer.hpp"
 
@@ -25,7 +24,6 @@ public:
     static ProcessModule GetClient();
     static ProcessModule GetEngine();
     static std::shared_ptr<pProcess> GetProcess();
-    static KdLoader* GetKdLoader();
     static const HighResTimer& GetHighResTimer();
 
 private:
@@ -40,8 +38,6 @@ private:
     Result<void, cncs_error::Code> InitImpl();
     void ShutdownImpl();
 
-    Result<void, cncs_error::Code> InitKernelDriver();
-
     Result<void, cncs_error::Code> AwaitProcess();
     Result<void, cncs_error::Code> AwaitModules();
 
@@ -51,7 +47,6 @@ private:
     std::shared_ptr<pProcess> process;
     ProcessModule client;
     ProcessModule engine;
-    KdLoader kd_loader;
     HighResTimer high_res_timer_;
 
     // 引擎线程生命周期：running 原子标志 + 可 join 的线程对象。

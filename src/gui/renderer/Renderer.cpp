@@ -10,6 +10,13 @@
 #include <thread>
 #include <chrono>
 
+namespace {
+    // 配置写入线程：HandleState 每次保存时重启；程序退出时在 DestroyImpl
+    // 中 join。此前是函数级 static，若退出时仍在写配置，joinable 的
+    // std::thread 析构会触发 std::terminate。
+    std::thread g_config_writer;
+}
+
 bool Renderer::Init() {
     return GetInstance().InitImpl();
 }
@@ -109,7 +116,11 @@ void Renderer::StopRenderThreadImpl() {
 
 void Renderer::DestroyImpl() {
     StopRenderThreadImpl();
-    
+
+    // 等待未完成的配置写入，避免退出时 joinable 线程析构导致 terminate
+    if (g_config_writer.joinable())
+        g_config_writer.join();
+
     Window::DestroyImGui();
     Window::DestroyDevice();
     Window::DespawnWindow();
@@ -173,7 +184,7 @@ void Renderer::Render() {
 }
 
 bool Renderer::HandleState() {
-    isRunning = Window::shouldRun; // From the window event handler
+    isRunning = Window::shouldRun.load(); // atomic 间赋值需显式 load（atomic 拷贝赋值已删除）
 
     static bool was_holding = false;
 
@@ -197,11 +208,10 @@ bool Renderer::HandleState() {
         Window::SetClickthrough(Window::hwnd, !this->isOpen);
         LOGF(VERBOSE, "捕获到 Insert 或右Shift，菜单状态切换为 {}", this->isOpen);
 
-        // 使用静态线程确保进程退出时不会崩溃
-        static std::thread config_writer;
-        if (config_writer.joinable())
-            config_writer.join();
-        config_writer = std::thread(Config::Write);
+        // 使用独立线程确保进程退出时不会崩溃
+        if (g_config_writer.joinable())
+            g_config_writer.join();
+        g_config_writer = std::thread(Config::Write);
     }
 
     if (pressed_end)

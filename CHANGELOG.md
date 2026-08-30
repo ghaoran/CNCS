@@ -10,6 +10,9 @@
 ## [未发布]
 
 ### 新增
+- 移除内核驱动依赖：内存读取改为用户态实现 (OpenProcess + ReadProcessMemory + CreateToolhelp32Snapshot)
+- 删除 src/core/kernel (KdLoader) 与驱动错误码 (DriverLoadFailed 等)
+- 删除 driver/ 目录、CI 驱动构建步骤；架构文档重写为用户态版本
 - 添加完整的单元测试套件 (Result、KalmanFilter、Ballistics、HighResTimer、Visibility、Config、Core)
 - 添加 GitHub Actions CI/CD 流水线
 - 添加代码风格配置 (.clang-format, .editorconfig)
@@ -27,6 +30,13 @@
 
 ### 修复
 - 修复 Esp.cpp 中观察者模式异常：target 为 -1 时增加边界检查
+- 修复 Dumper::ScanBlock 未判空 Engine::GetProcess() 的潜在空指针解引用
+- 修复 Globals::max_clients 无上限导致 Cache::RefreshImpl reserve/循环失控的崩溃风险 (clamp 0..64)
+- 修复 Renderer 函数级 static std::thread 在退出时 joinable 析构触发 std::terminate 的风险 (移至文件级并在 DestroyImpl join)
+- 修复 isRunning/isOpen/isFocused/vsync/shouldRun 跨线程非原子访问 (改用 std::atomic<bool>；atomic 间赋值需显式 load)
+- 修复 Cache 烟雾缓存满 64 条后新烟雾无法入缓存 (满时淘汰最旧条目)
+- 修复 Cache/Player 从字节数组按指针读取 int32/float 的未对齐访问 UB (改用 memcpy)
+- 修复 Player 构造函数 int→int8_t 窄化警告 (C4244)
 - 修复 Engine 等待进程/模块时的固定 5s 睡眠，改为指数退避 (1s→5s)
 - 修复 KdLoader 栈缓冲区溢出风险 (4KB 栈缓冲 → std::vector)
 - 修复驱动卸载竞态条件 (显式等待引用计数归零)

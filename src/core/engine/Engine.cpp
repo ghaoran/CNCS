@@ -23,57 +23,15 @@ std::shared_ptr<pProcess> Engine::GetProcess() {
     return GetInstance().process;
 }
 
-KdLoader* Engine::GetKdLoader() {
-    return &GetInstance().kd_loader;
-}
-
 const HighResTimer& Engine::GetHighResTimer() {
     return GetInstance().high_res_timer_;
-}
-
-// ============================================================================
-// 初始化内核驱动（必须成功，否则无法继续）
-// ============================================================================
-Result<void, cncs_error::Code> Engine::InitKernelDriver() {
-    auto& kd = GetInstance().kd_loader;
-
-    // 获取驱动 .sys 文件路径（与 EXE 同目录）
-    wchar_t exe_path[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, exe_path, MAX_PATH);
-
-    // 去掉文件名，拼接驱动文件名
-    std::wstring driver_path(exe_path);
-    auto pos = driver_path.find_last_of(L"\\/");
-    if (pos != std::wstring::npos)
-        driver_path = driver_path.substr(0, pos + 1);
-    driver_path += L"CNCS_drv.sys";
-
-    LOGF(INFO, "正在加载内核驱动 (CNCS_drv.sys)...");
-
-    if (!kd.LoadDriver(driver_path.c_str())) {
-        LOGF(FATAL, "内核驱动加载失败！请确保：");
-        LOGF(FATAL, "  1. 以管理员权限运行");
-        LOGF(FATAL, "  2. 已开启测试签名模式 (bcdedit /set testsigning on)");
-        LOGF(FATAL, "  3. CNCS_drv.sys 与程序在同一目录");
-        return Result<void, cncs_error::Code>::Err(cncs_error::Code::DriverLoadFailed);
-    }
-
-    LOGF(INFO, "内核驱动加载成功");
-    return Result<void, cncs_error::Code>::Ok();
 }
 
 Result<void, cncs_error::Code> Engine::InitImpl() {
     process = std::make_shared<pProcess>();
 
-    // 加载内核驱动（必须成功）
-    auto driver_result = InitKernelDriver();
-    if (!driver_result) {
-        return driver_result;
-    }
-
-    // 设置内核驱动到 process 对象
-    process->SetKernelDriver(&kd_loader);
-    LOGF(INFO, "内存读取模式: 内核驱动 (MmCopyVirtualMemory)");
+    // 用户态读取模式：OpenProcess + ReadProcessMemory，无需内核驱动
+    LOGF(INFO, "内存读取模式: 用户态 (ReadProcessMemory)");
 
     auto process_result = this->AwaitProcess();
     if (!process_result) {
@@ -100,7 +58,7 @@ Result<void, cncs_error::Code> Engine::InitImpl() {
         al::LogHelper::Free();
 #endif
 
-    // 启动引擎线程（可 join，Shutdown 时先停止再卸载驱动）
+    // 启动引擎线程（可 join，Shutdown 时先停止再关闭进程句柄）
     running = true;
     engine_thread = std::thread(&Engine::Thread, this);
 
@@ -109,14 +67,10 @@ Result<void, cncs_error::Code> Engine::InitImpl() {
 }
 
 void Engine::ShutdownImpl() {
-    // 先停止引擎线程并等待其退出，避免它在驱动卸载后继续通过已关闭的
-    // 句柄调用 DeviceIoControl（竞态 + 潜在句柄重用风险）。
+    // 先停止引擎线程并等待其退出，避免它在关闭进程句柄后继续读取。
     running = false;
     if (engine_thread.joinable())
         engine_thread.join();
-
-    LOGF(INFO, "正在卸载内核驱动...");
-    kd_loader.UnloadDriver();
 
     if (process)
         process->Close();

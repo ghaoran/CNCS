@@ -1,18 +1,33 @@
 #include "Memory.hpp"
-#include "core/kernel/KdLoader.hpp"
+#include <tlhelp32.h>
 
 uint32_t pProcess::FindProcessIdByProcessName(const char* ProcessName)
 {
-	if (!kd_ || !kd_->IsReady())
-		return 0;
-
 	std::wstring wideProcessName;
 	int wideCharLength = MultiByteToWideChar(CP_UTF8, 0, ProcessName, -1, nullptr, 0);
 	if (wideCharLength > 0) {
 		wideProcessName.resize(wideCharLength);
 		MultiByteToWideChar(CP_UTF8, 0, ProcessName, -1, &wideProcessName[0], wideCharLength);
 	}
-	return (uint32_t)kd_->FindProcess(wideProcessName.c_str());
+
+	// 用户态：通过 Toolhelp 进程快照按映像名查找 PID
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (snapshot == INVALID_HANDLE_VALUE)
+		return 0;
+
+	uint32_t pid = 0;
+	PROCESSENTRY32W entry{};
+	entry.dwSize = sizeof(entry);
+	if (Process32FirstW(snapshot, &entry)) {
+		do {
+			if (_wcsicmp(entry.szExeFile, wideProcessName.c_str()) == 0) {
+				pid = entry.th32ProcessID;
+				break;
+			}
+		} while (Process32NextW(snapshot, &entry));
+	}
+	CloseHandle(snapshot);
+	return pid;
 }
 
 HWND pProcess::GetWindowHandleFromProcessId(DWORD ProcessId) {
@@ -37,14 +52,15 @@ bool pProcess::Attach(DWORD pid)
 	if (!pid)
 		return false;
 
-	if (!kd_ || !kd_->IsReady())
-		return false;
-
 	hwnd_ = GetWindowHandleFromProcessId(pid);
 	if (!hwnd_)
 		return false;
 
-	// 通过驱动获取并验证 PID
+	// 用户态：打开进程句柄供 ReadProcessMemory 使用
+	handle_ = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, FALSE, pid);
+	if (!handle_)
+		return false;
+
 	pid_ = pid;
 	return true;
 }
@@ -63,7 +79,7 @@ bool pProcess::UpdateHWND()
 
 ProcessModule pProcess::GetModule(const char* lModule)
 {
-	if (!kd_ || !kd_->IsReady())
+	if (!handle_)
 		return { 0, 0 };
 
 	std::wstring wideModule;
@@ -74,14 +90,32 @@ ProcessModule pProcess::GetModule(const char* lModule)
 		MultiByteToWideChar(CP_UTF8, 0, lModule, -1, &wideModule[0], wideCharLength);
 	}
 
-	KdLoader::ModuleInfo info{};
-	if (kd_->GetModuleBase(pid_, wideModule.c_str(), info)) {
-		return { (uintptr_t)info.base, (uintptr_t)info.size };
+	// 用户态：通过 Toolhelp 模块快照获取模块基址与大小
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid_);
+	if (snapshot == INVALID_HANDLE_VALUE)
+		return { 0, 0 };
+
+	ProcessModule result{ 0, 0 };
+	MODULEENTRY32W entry{};
+	entry.dwSize = sizeof(entry);
+	if (Module32FirstW(snapshot, &entry)) {
+		do {
+			if (_wcsicmp(entry.szModule, wideModule.c_str()) == 0) {
+				result.base = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
+				result.size = static_cast<uintptr_t>(entry.modBaseSize);
+				break;
+			}
+		} while (Module32NextW(snapshot, &entry));
 	}
-	return { 0, 0 };
+	CloseHandle(snapshot);
+	return result;
 }
 
 void pProcess::Close()
 {
-	// 内核模式下无需清理
+	// 关闭用户态进程句柄
+	if (handle_) {
+		CloseHandle(handle_);
+		handle_ = nullptr;
+	}
 }

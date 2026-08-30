@@ -205,7 +205,7 @@ bool Cache::RefreshImpl() {
                 if (!p->read_raw(ent + s1, sblk, s1_sz))
                     continue;
                 const bool did_smoke = sblk[offsets::smoke::m_bDidSmokeEffect - s1] != 0 ||
-                                       *(int32_t*)(sblk) > 0;
+                                       [&] { int32_t tick; std::memcpy(&tick, sblk, sizeof(tick)); return tick > 0; }();
                 if (!did_smoke)
                     continue;
                 Vec3_t origin;
@@ -218,7 +218,9 @@ bool Cache::RefreshImpl() {
                 constexpr size_t s2_sz = (offsets::smoke::m_bSmokeVolumeDataReceived + 1) - s2; // 4801 - 4768 = 33
                 uint8_t vblk[s2_sz];
                 const bool have_vmeta = p->read_raw(ent + s2, vblk, s2_sz);
-                const int32_t voxel_update = have_vmeta ? *(int32_t*)(vblk + (offsets::smoke::m_nVoxelUpdate - s2)) : 0;
+                int32_t voxel_update = 0;
+                if (have_vmeta)
+                    std::memcpy(&voxel_update, vblk + (offsets::smoke::m_nVoxelUpdate - s2), sizeof(voxel_update));
 
                 SmokeBox box;
                 bool cached = false;
@@ -231,8 +233,12 @@ bool Cache::RefreshImpl() {
                 }
 
                 if (!cached) {
-                    const uintptr_t voxel_ptr = have_vmeta ? *(uintptr_t*)(vblk) : 0;
-                    const int32_t voxel_size = have_vmeta ? *(int32_t*)(vblk + (offsets::smoke::m_nVoxelFrameDataSize - s2)) : 0;
+                    uintptr_t voxel_ptr = 0;
+                    int32_t voxel_size = 0;
+                    if (have_vmeta) {
+                        std::memcpy(&voxel_ptr, vblk, sizeof(voxel_ptr));
+                        std::memcpy(&voxel_size, vblk + (offsets::smoke::m_nVoxelFrameDataSize - s2), sizeof(voxel_size));
+                    }
                     const bool vol_ready = have_vmeta && vblk[offsets::smoke::m_bSmokeVolumeDataReceived - s2] != 0;
 
                     if (voxel_ptr && voxel_size > 0 && voxel_size <= 8192 && vol_ready) {
@@ -240,8 +246,9 @@ bool Cache::RefreshImpl() {
                         const int32_t to_read = std::min(voxel_size, (int32_t)sizeof(vbuf));
                         if (p->read_raw(voxel_ptr, vbuf, to_read)) {
                             if (ComputeSmokeBox(vbuf, to_read, origin, box)) {
-                                if (smoke_cache.size() < 64)
-                                    smoke_cache.push_back({ ent, voxel_update, box });
+                                if (smoke_cache.size() >= MAX_SMOKE_CACHE_ENTRIES)
+                                    smoke_cache.erase(smoke_cache.begin()); // 淘汰最旧条目，防止缓存满后新烟雾无法入缓存
+                                smoke_cache.push_back({ ent, voxel_update, box });
                                 smokes.push_back(box);
                                 continue;
                             }
@@ -251,8 +258,9 @@ bool Cache::RefreshImpl() {
                     // voxel 读取失败 → 回退到估算 AABB（烟雾云约 300×300×350 units）。
                     box.min = Vec3_t(origin.x - 150.f, origin.y - 150.f, origin.z);
                     box.max = Vec3_t(origin.x + 150.f, origin.y + 150.f, origin.z + 350.f);
-                    if (smoke_cache.size() < 64)
-                        smoke_cache.push_back({ ent, voxel_update, box });
+                    if (smoke_cache.size() >= MAX_SMOKE_CACHE_ENTRIES)
+                        smoke_cache.erase(smoke_cache.begin());
+                    smoke_cache.push_back({ ent, voxel_update, box });
                 }
                 smokes.push_back(box);
             }

@@ -203,12 +203,7 @@ namespace cncs_error {
         BufferTooSmall = 1004,
         OutOfMemory = 1005,
         
-        // Driver errors
-        DriverNotLoaded = 2000,
-        DriverLoadFailed = 2001,
-        DriverUnloadFailed = 2002,
-        DeviceOpenFailed = 2003,
-        IoctlFailed = 2004,
+        // Access & handle errors
         AccessDenied = 2005,
         InvalidHandle = 2006,
         
@@ -255,11 +250,6 @@ namespace cncs_error {
             case Code::NullPointer: return "Null pointer";
             case Code::BufferTooSmall: return "Buffer too small";
             case Code::OutOfMemory: return "Out of memory";
-            case Code::DriverNotLoaded: return "Driver not loaded";
-            case Code::DriverLoadFailed: return "Driver load failed";
-            case Code::DriverUnloadFailed: return "Driver unload failed";
-            case Code::DeviceOpenFailed: return "Device open failed";
-            case Code::IoctlFailed: return "IOCTL failed";
             case Code::AccessDenied: return "Access denied";
             case Code::InvalidHandle: return "Invalid handle";
             case Code::ProcessNotFound: return "Process not found";

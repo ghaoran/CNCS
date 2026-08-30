@@ -4,51 +4,49 @@
 #include <Windows.h>
 #include <string>
 
-// 内核驱动通信模块（需完整定义：内联的 read/read_raw 调用了
-// kd_ 的成员函数，仅前置声明会编译失败）
-#include "core/kernel/KdLoader.hpp"
-
 struct ProcessModule
 {
 	uintptr_t base, size;
 };
 
+// 用户态进程封装：OpenProcess + ReadProcessMemory 读取目标进程内存，
+// 不再依赖内核驱动。
 class pProcess
 {
 public:
-	DWORD		  pid_; // process id
-	HWND		  hwnd_; // window handle
-
-	// 内核驱动实例（必须有效才能工作）
-	KdLoader*     kd_ = nullptr;
+	DWORD		  pid_ = 0; // process id
+	HWND		  hwnd_ = nullptr; // window handle
 
 public:
 	bool AttachProcess(const char* process_name);
 	bool UpdateHWND();
 	void Close();
 
-	// 设置内核驱动加载器（必须在 AttachProcess 之前调用）
-	void SetKernelDriver(KdLoader* kd) { kd_ = kd; }
-
 public:
 	ProcessModule GetModule(const char* module_name);
 
 	bool read_raw(uintptr_t address, void* buffer, size_t size)
 	{
-		if (!kd_ || !kd_->IsReady())
+		if (!handle_ || !buffer || !size)
 			return false;
-		return kd_->ReadRaw(pid_, address, buffer, size);
+		SIZE_T bytes_read = 0;
+		if (!ReadProcessMemory(handle_, reinterpret_cast<LPCVOID>(address),
+			buffer, size, &bytes_read))
+			return false;
+		return bytes_read == size;
 	}
 
 	template<class T>
 	T read(uintptr_t address)
 	{
-		if (!kd_ || !kd_->IsReady())
-			return T{};
-		return kd_->Read<T>(pid_, address);
+		T buffer{};
+		read_raw(address, &buffer, sizeof(T));
+		return buffer; // 读取失败时返回零值，与原驱动模式语义一致
 	}
 
 private:
+	HANDLE handle_ = nullptr; // 目标进程句柄（用户态读取用）
+
 	uint32_t FindProcessIdByProcessName(const char* process_name);
 	HWND GetWindowHandleFromProcessId(DWORD ProcessId);
 	bool Attach(DWORD pid);

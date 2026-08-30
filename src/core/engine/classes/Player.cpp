@@ -153,12 +153,13 @@ bool Player::UpdatePawn() {
 	if (!p->read_raw(pawn + b3, blk3, b3_sz))
 		return false;
 
-	this->flashed = *(float*)(blk3 + (offsets::pawn::m_flFlashOverlayAlpha - b3)) > 0.f;
+	std::memcpy(&this->flashed, blk3 + (offsets::pawn::m_flFlashOverlayAlpha - b3), sizeof(this->flashed));
+	this->flashed = this->flashed > 0.f;
 	this->scoped  = blk3[offsets::pawn::m_bIsScoped - b3] != 0;
 	this->defusing = blk3[offsets::pawn::m_bIsDefusing - b3] != 0;
 	std::memcpy(&this->spotted_mask, blk3 + (offsets::pawn::m_entitySpottedState + offsets::pawn::m_bSpottedByMask - b3), 8);
 	this->spotted = this->spotted_mask != 0;
-	this->armor = *(int*)(blk3 + (offsets::pawn::m_ArmorValue - b3));
+	std::memcpy(&this->armor, blk3 + (offsets::pawn::m_ArmorValue - b3), sizeof(this->armor));
 
 	if (!UpdateSkeleton()) {
 		return false;

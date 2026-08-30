@@ -22,7 +22,9 @@ if(MSVC)
     # 无需随发布带 vcruntime/ucrt DLL。
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     # Warning level 4 (equivalent to /W4) but suppress noisy ones
-    add_compile_options(/W4 /permissive- /Zc:__cplusplus /Zc:inline /Zc:strictStrings /Zc:throwingNew)
+    add_compile_options(/W4 /permissive- /Zc:__cplusplus /Zc:inline /Zc:strictStrings /Zc:throwingNew
+        /utf-8   # 源码为无 BOM UTF-8（见 .editorconfig），避免 MSVC 按 ACP 误读中文注释
+    )
     # Disable specific warnings that are noisy in third-party code
     add_compile_options(
         /wd4201   # nameless struct/union (common in Windows headers)
@@ -90,7 +92,6 @@ set(CNCS_SOURCES
     src/core/engine/classes/ObserverServices.cpp
     src/core/engine/classes/Player.cpp
     src/core/engine/classes/Weapon.cpp
-    src/core/kernel/KdLoader.cpp
     src/core/logger/LogHelper.cpp
     src/core/memory/Memory.cpp
     src/core/offsets/Dumper.cpp
@@ -211,13 +212,6 @@ if(MSVC)
 endif()
 
 # -----------------------------------------------------------------------------
-# Driver Project (Kernel Driver)
-# -----------------------------------------------------------------------------
-# Note: Kernel drivers require WDK + special CMake setup.
-# This is a placeholder - actual driver build uses WDK build system.
-# See driver/CNCS_drv.vcxproj for current driver build.
-
-# -----------------------------------------------------------------------------
 # Custom Targets
 # -----------------------------------------------------------------------------
 # Copy embedded collision meshes to output directory (only if maps/ exists)
@@ -234,23 +228,6 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
             )
         endforeach()
     endif()
-endif()
-
-# Copy driver .sys to output directory (built separately, only if exists)
-# 多配置生成器（Visual Studio）下 CMAKE_BUILD_TYPE 为空，路径回退到 Release。
-set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/${CMAKE_BUILD_TYPE}/CNCS_drv.sys")
-if(NOT EXISTS "${DRIVER_SYS_PATH}")
-    set(DRIVER_SYS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/driver/x64/Release/CNCS_drv.sys")
-endif()
-if(EXISTS "${DRIVER_SYS_PATH}")
-    add_custom_command(TARGET CNCS POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${DRIVER_SYS_PATH}"
-            "$<TARGET_FILE_DIR:CNCS>/CNCS_drv.sys"
-        COMMENT "Copying kernel driver to output directory"
-    )
-else()
-    message(WARNING "Driver not found at ${DRIVER_SYS_PATH}, skipping driver copy")
 endif()
 
 # -----------------------------------------------------------------------------

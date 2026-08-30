@@ -104,9 +104,6 @@ using byte = unsigned char;
 // Config (used by Engine.hpp)
 #include "config/Config.hpp"
 
-// Kernel driver (used by Engine.hpp)
-#include "core/kernel/KdLoader.hpp"
-
 // Logging macros (temporary - will migrate to spdlog/fmt)
 #include <core/logger/LogHelper.hpp>
 

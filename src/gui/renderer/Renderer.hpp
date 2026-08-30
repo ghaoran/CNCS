@@ -50,9 +50,10 @@ private:
     bool HandleWindowOrder();
     
 private:
-    bool isRunning = true;
-    bool isOpen = false;
-    bool isFocused = false;
+    // 跨线程访问（渲染线程写 / 主线程读），用 atomic 避免 data race UB
+    std::atomic<bool> isRunning{ true };
+    std::atomic<bool> isOpen{ false };
+    std::atomic<bool> isFocused{ false };
     
     // Thread management
     std::thread render_thread_;

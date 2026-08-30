@@ -59,7 +59,8 @@ jobs:
 
     - name: Install deps
       run: |
-        ./vcpkg/vcpkg.exe install --triplet x64-windows
+        # 与 VCPKG_DEFAULT_TRIPLET 保持一致：静态 CRT (/MT) 需要 x64-windows-static
+        ./vcpkg/vcpkg.exe install --triplet x64-windows-static
 
     - name: Configure CMake
       run: |
@@ -74,27 +75,13 @@ jobs:
       run: |
         ctest --test-dir build --output-on-failure -C Debug
 
-    - name: Build driver (skip if WDK not available)
-      run: |
-        cd driver
-        $WdkBuildDir = "${env:ProgramFiles(x86)}\Windows Kits\10\build"
-        $WdkPath = Get-ChildItem $WdkBuildDir -Directory -ErrorAction SilentlyContinue |
-                     Sort-Object Name | Select-Object -Last 1 -ExpandProperty FullName
-        if ($WdkPath) {
-          Write-Host "WDK found at $WdkPath, building driver..."
-          powershell -ExecutionPolicy Bypass -File build_driver.ps1 -Configuration ${{ matrix.configuration }} -TestSign
-        } else {
-          Write-Warning "WDK not found, skipping driver build"
-        }
-
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: CNCS-${{ matrix.configuration }}
-        # 上传整个输出目录：CNCS.exe + vcpkg 部署的同目录 z.dll/fmt.dll + .sys
+        # 上传整个输出目录：CNCS.exe + vcpkg 部署的同目录依赖 DLL
         path: |
           build/bin/${{ matrix.configuration }}/
-          driver/x64/${{ matrix.configuration }}/CNCS_drv.sys
         retention-days: 30
         if-no-files-found: ignore
 
@@ -128,11 +115,8 @@ jobs:
     - name: Package
       run: |
         mkdir release -Force
-        # 复制 Release 目录内全部内容（CNCS.exe + z.dll/fmt.dll 等依赖）
+        # 复制 Release 目录内全部内容（CNCS.exe + 依赖 DLL）
         Copy-Item "artifacts\bin\Release\*" release\ -Recurse -Force
-        if (Test-Path "artifacts\driver\x64\Release\CNCS_drv.sys") {
-          copy artifacts\driver\x64\Release\CNCS_drv.sys release\
-        }
         if (Test-Path "src\embedded\*.m2") {
           mkdir release\maps -Force
           copy src\embedded\*.m2 release\maps\

@@ -29,7 +29,6 @@
 #include "core/offsets/Offsets.hpp"
 #include "core/offsets/Dumper.hpp"
 #include "core/memory/Memory.hpp"
-#include "core/kernel/KdLoader.hpp"
 
 // Visibility
 #include "core/visibility/Visibility.hpp"

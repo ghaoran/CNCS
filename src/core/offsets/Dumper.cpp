@@ -95,7 +95,7 @@ DWORD64 Dumper::Scan(const std::string sig, ProcessModule module) {
     DWORD64 address = 0;
     std::vector<DWORD64> list;
 
-    list = ScanMemory(sig, module.base, module.base + 0x4000000);
+    list = ScanMemory(sig, module.base, module.base + module.size);
 
     if (!list.size())
         return 0;
@@ -131,6 +131,9 @@ void Dumper::GetNextArray(std::vector<short>& next, const std::vector<WORD>& sig
 void Dumper::ScanBlock(byte* buffer, const std::vector<short>& next, const std::vector<WORD>& signature, DWORD64 start, DWORD size, std::vector<DWORD64>& result)
 {
     auto process = Engine::GetProcess();
+
+    if (!process)
+        return;
 
     if (!process->read_raw(start, buffer, size))
         return;

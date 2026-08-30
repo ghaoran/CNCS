@@ -5,10 +5,10 @@ ID3D11DeviceContext* Window::device_context = nullptr;
 IDXGISwapChain* Window::swap_chain = nullptr;
 ID3D11RenderTargetView* Window::render_targetview = nullptr;
 
-bool Window::vsync = false;
 HWND Window::hwnd = nullptr;
 HWND Window::viewport = nullptr;
 WNDCLASSEX Window::wc = { };
+// vsync / shouldRun 定义为类内 inline static atomic，此处不再重复定义
 
 extern LRESULT CALLBACK window_procedure(HWND window, UINT msg, WPARAM wParam, LPARAM lParam);
 
