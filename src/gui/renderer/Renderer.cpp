@@ -135,13 +135,15 @@ void Renderer::DestroyImpl() {
 void Renderer::ThreadImpl() {
     while (isRunning) {
         Render();
-        
+
         // Signal frame completion
         SignalFrameReadyImpl();
-        
-        // If the game is not focused dont do states, 
-        // or will start focusing game & overlay
-        if (this->isFocused && HandleState())
+
+        // 热键全局响应：GetAsyncKeyState 本就是全局按键轮询，不依赖前台
+        // 焦点。此前用 isFocused 门控，导致前台不是游戏/覆盖层时按键永远
+        // 无响应、菜单打不开。
+        const bool toggled = HandleState();
+        if (toggled)
             continue; // It will cause flickering if we handle window order after window closes
 
         HandleWindowOrder();
@@ -204,10 +206,13 @@ bool Renderer::HandleState() {
 
         // Release cursor when opening the menu
         // Sometimes flashes the render as its handling the window order
-        if (this->isOpen)
+        if (this->isOpen) {
             SetForegroundWindow(Window::hwnd);
-        else
-            SetForegroundWindow(Engine::GetProcess()->hwnd_);
+        } else {
+            // 尽力把焦点还给游戏；进程已退出/句柄失效时跳过
+            if (auto p = Engine::GetProcess(); p && p->hwnd_)
+                SetForegroundWindow(p->hwnd_);
+        }
 
         Window::SetClickthrough(Window::hwnd, !this->isOpen);
         LOGF(VERBOSE, "捕获到 Insert 或右Shift，菜单状态切换为 {}", this->isOpen.load());
@@ -239,7 +244,8 @@ bool Renderer::HandleWindowOrder() {
     auto foreground = GetForegroundWindow();
     this->isFocused = (foreground == Window::hwnd || foreground == p->hwnd_);
 
-    if (!this->isFocused && overlay_visible) {
+    // 菜单打开时即使失焦也保持覆盖层可见，否则菜单会被意外藏掉
+    if (!this->isFocused && !this->isOpen && overlay_visible) {
         LOGF(VERBOSE, "游戏未聚焦，隐藏叠加层窗口");
         ShowWindow(Window::hwnd, SW_HIDE);
         overlay_visible = false;
