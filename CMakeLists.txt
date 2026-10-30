@@ -33,6 +33,17 @@ if(MSVC)
     # Static CRT（/MT /MTd）：静态链接运行时，与 x64-windows-static triplet 配套，
     # 无需随发布带 vcruntime/ucrt DLL。
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+    # 与 vcpkg triplet 的一致性守卫。
+    # 历史上这里只手工 `vcpkg install --triplet x64-windows-static`，但 CMake 清单模式
+    # 会按默认 x64-windows 再解析一遍依赖，最终链接到 MD/MDd 的 Catch2：
+    #   Catch2d.lib : error LNK2038 mismatch 'MDd_DynamicDebug' vs 'MTd_StaticDebug'
+    # 这类错误在链接期才暴露、日志极长。这里提前在 configure 阶段给出明确提示。
+    if(DEFINED VCPKG_TARGET_TRIPLET AND NOT VCPKG_TARGET_TRIPLET STREQUAL "x64-windows-static")
+        message(FATAL_ERROR
+            "本工程强制静态 CRT (/MT, /MTd)，与 vcpkg triplet '${VCPKG_TARGET_TRIPLET}' 不匹配。\n"
+            "请改用: -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_HOST_TRIPLET=x64-windows-static")
+    endif()
     # Warning level 4 (equivalent to /W4) but suppress noisy ones
     add_compile_options(/W4 /permissive- /Zc:__cplusplus /Zc:inline /Zc:strictStrings /Zc:throwingNew
         /utf-8   # 源码为无 BOM UTF-8（见 .editorconfig），避免 MSVC 按 ACP 误读中文注释

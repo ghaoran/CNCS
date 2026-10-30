@@ -63,12 +63,18 @@ jobs:
 
     - name: Install deps
       run: |
-        # 与 VCPKG_DEFAULT_TRIPLET 保持一致：静态 CRT (/MT) 需要 x64-windows-static
+        # 静态 CRT (/MT) 需要 x64-windows-static，否则 fmt/catch2 按 MD/MDd 构建，
+        # 链接期直接 LNK2038 RuntimeLibrary mismatch。
         ./vcpkg/vcpkg.exe install --triplet x64-windows-static
 
     - name: Configure CMake
       run: |
-        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+        # 关键：必须显式传 -DVCPKG_TARGET_TRIPLET。清单模式下 CMake 会自行再解析一遍
+        # 依赖，不指定 triplet 时按默认 x64-windows(MD/MDd) 安装，于是出现
+        #   Catch2d.lib : error LNK2038 mismatch 'MDd_DynamicDebug' vs 'MTd_StaticDebug'
+        # 即使上一步已装过 x64-windows-static 也无效。
+        # 单行写法：PowerShell 的反引号续行对缩进敏感，容易连带空格进参数。
+        cmake -B build ${{ matrix.cmake_args }} -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static -DVCPKG_HOST_TRIPLET=x64-windows-static
 
     - name: Build
       run: |
