@@ -1,4 +1,5 @@
 #pragma once
+#include "core/util/Platform.hpp"
 #include <cmath>
 #include <nlohmann/json.hpp>
 
@@ -8,9 +9,11 @@ public:
 	explicit Vec2_t(float a) : x(a), y(a) {}
 	Vec2_t(float a, float b) : x(a), y(b) {}
 
-	// ImGui compatibility
+#if defined(IMGUI_VERSION)
+	// ImGui 互通：仅在已引入 imgui.h 的 TU 中启用，core 结构头不再硬依赖 ImGui。
 	operator ImVec2() const { return ImVec2(x, y); }
 	Vec2_t(const ImVec2& v) : x(v.x), y(v.y) {}
+#endif
 
 	operator float* () {
 		return &x;

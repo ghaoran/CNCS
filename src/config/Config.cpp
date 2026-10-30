@@ -1,20 +1,20 @@
 #include "Config.hpp"
 
 #include <algorithm>
-#include <mutex>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <mutex>
+
+#include "core/util/Log.hpp"
+#include "core/util/PathUtils.hpp"
 
 namespace {
-	// 获取 exe 所在目录（与 config.json 同级）
-	std::filesystem::path ExeDir() {
-		char buf[MAX_PATH];
-		DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
-		if (n == 0) return std::filesystem::current_path();
-		return std::filesystem::path(buf).parent_path();
-	}
-
+	// 配置文件与可执行文件同级；路径解析由 util::ExeDir() 统一处理
+	// （Windows 用 GetModuleFileNameA，POSIX 用 /proc/self/exe），
+	// 避免 core 层直接依赖 <windows.h> / MAX_PATH。
 	std::string ConfigPath() {
-		return (ExeDir() / "config.json").string();
+		return util::ExePath("config.json").string();
 	}
 }
 
@@ -30,7 +30,7 @@ bool Config::ReadImpl() {
 	std::ifstream f(ConfigPath());
 
 	if (!f.good()) {
-		LOGF(INFO, "配置文件不存在，正在创建默认配置");
+		CNCS_CORE_LOG(INFO, "配置文件不存在，正在创建默认配置");
 		WriteImpl();
 		return false;
 	}
@@ -40,7 +40,7 @@ bool Config::ReadImpl() {
 		data = json::parse(f);
 	}
 	catch (const std::exception&) {
-		LOGF(FATAL, "解析配置文件失败");
+		CNCS_CORE_LOG(FATAL, "解析配置文件失败");
 		WriteImpl();
 		return false;
 	}
@@ -165,12 +165,12 @@ bool Config::ReadImpl() {
 		//cfg::settings::open_menu_key = data["utils"].value("open_menu_key", 0);
 	}
 	catch (const std::exception&) {
-		LOGF(FATAL, "解析配置失败");
+		CNCS_CORE_LOG(FATAL, "解析配置失败");
 		WriteImpl();
 		return false;
 	}
 
-	LOGF(INFO, "配置解析成功");
+	CNCS_CORE_LOG(INFO, "配置解析成功");
 	return true;
 }
 
@@ -182,7 +182,7 @@ bool Config::WriteImpl() {
 
 	std::ofstream f(ConfigPath());
 	if (!f.good()) {
-		LOGF(FATAL, "打开配置文件写入失败");
+		CNCS_CORE_LOG(FATAL, "打开配置文件写入失败");
 		return false;
 	}
 
@@ -305,7 +305,7 @@ bool Config::WriteImpl() {
 	f << std::setw(4) << data << std::endl;
 	f.close();
 
-	LOGF(VERBOSE, "正在写入配置到文件");
+	CNCS_CORE_LOG(VERBOSE, "正在写入配置到文件");
 
 	return true;
 }

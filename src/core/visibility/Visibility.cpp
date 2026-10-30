@@ -2,19 +2,24 @@
 
 #include <cmath>
 #include <filesystem>
+#include <string>
 #include <vector>
-#include <windows.h>
 
-#include "core/logger/LogHelper.hpp"
+#include "core/util/Log.hpp"
+#include "core/util/PathUtils.hpp"
 #include "resource.h"
 
+#if CNCS_PLATFORM_WINDOWS
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace {
-    std::filesystem::path ExeDir() {
-        char buf[MAX_PATH];
-        DWORD n = GetModuleFileNameA(nullptr, buf, MAX_PATH);
-        if (n == 0) return std::filesystem::current_path();
-        return std::filesystem::path(buf).parent_path();
-    }
 
     // FNV-1a hash so the CS2 map names never appear as plaintext strings in the
     // binary (they are an obvious signature). The lookup hashes are evaluated
@@ -68,6 +73,8 @@ namespace {
         return -1;
     }
 
+#if CNCS_PLATFORM_WINDOWS
+    // 从可执行文件的 RT_RCDATA 资源读取内置碰撞数据（resource.rc 打入）。
     bool LoadEmbeddedMap(CollisionMesh& mesh, const std::string& map_name) {
         int id = MapResourceId(map_name);
         if (id < 0) return false;
@@ -81,6 +88,14 @@ namespace {
         if (!data || size == 0) return false;
         return mesh.LoadCacheV2FromMemory(data, size);
     }
+#else
+    // 非 Windows 目标没有 PE 资源段：直接跳过内置数据，后续回落到外部 maps/ 目录。
+    bool LoadEmbeddedMap(CollisionMesh& /*mesh*/, const std::string& map_name) {
+        if (MapResourceId(map_name) < 0) return false;
+        CNCS_CORE_LOG(WARNING, "掩体判断：非 Windows 构建无内置碰撞资源，地图 '{}' 需外部 maps/ 文件", map_name);
+        return false;
+    }
+#endif
 }
 
 Visibility& Visibility::Get() {
@@ -97,10 +112,10 @@ void Visibility::UpdateMap(const std::string& raw_name) {
     m_mesh.Clear();
 
     namespace fs = std::filesystem;
-    std::vector<fs::path> bases = { ExeDir() / "maps", fs::current_path() / "maps" };
+    std::vector<fs::path> bases = { util::ExeDir() / "maps", fs::current_path() / "maps" };
 
     auto log_loaded = [&](const char* src) {
-        LOGF(INFO, "掩体判断：已加载地图碰撞数据（{}，{}三角形），当前地图 '{}'",
+        CNCS_CORE_LOG(INFO, "掩体判断：已加载地图碰撞数据（{}，{}三角形），当前地图 '{}'",
             src, m_mesh.TriangleCount(), map_name);
     };
 
@@ -142,7 +157,7 @@ void Visibility::UpdateMap(const std::string& raw_name) {
     static std::string last_warned;
     if (last_warned != map_name) {
         last_warned = map_name;
-        LOGF(WARNING, "掩体判断：未找到地图 '{}' 的碰撞数据，自瞄将不启用掩体过滤", map_name);
+        CNCS_CORE_LOG(WARNING, "掩体判断：未找到地图 '{}' 的碰撞数据，自瞄将不启用掩体过滤", map_name);
     }
 }
 

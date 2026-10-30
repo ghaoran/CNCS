@@ -9,7 +9,47 @@
 
 ## [未发布]
 
-### 新增
+### 修复（构建与 CI）
+- 修复 CI 必失败根因：CMakeLists.txt 把可执行目标 `CNCS` 用 `target_link_libraries` 链接进测试，
+  CMake 在 configure 阶段直接报 `Target "CNCS" of type EXECUTABLE may not be linked into another target`，
+  Debug job 100% 失败、release job 因 `needs: build` 永不产出。现抽出 `CNCS_Core` 静态库供测试链接。
+- 修复 release 流水线从未触发：`release` job 条件为 `refs/tags/*`，但 `on.push` 只监听分支。
+  现补 `tags: ['v*', '[0-9]*']` 与 `workflow_dispatch`。
+- 修复 release 产物互相覆盖：download-artifact 的 `pattern: CNCS-*` 会把 Debug 一起合并，
+  现改为只取 `CNCS-Release`；并补 `actions/checkout`（打包需要读 `src/embedded/*.m2`）。
+- 修复 `build.ps1` 项目根解析错误：脚本本身在仓库根，却又 `Resolve-Path "$ScriptDir\.."`，
+  导致 `-S` 指向仓库父目录、找不到 CMakeLists.txt。
+- 修复 `tests/CMakeLists.txt` 为第二套失效构建描述（未被引用、同样把 exe 当库链接、引用不存在目录），
+  改为转发到根项目的权威定义。
+- 修复 `.clang-format` 无法解析：重复键 `PointerAlignment` + 非法键 `TemplateDepth`，
+  导致 clang-format 拒绝读取整个配置、格式检查形同虚设。格式检查同时改为只校验改动文件。
+- 修复 `/MT /MTd /GL /LTCG` 等 MSVC 专属编译选项被无条件施加，污染非 MSVC 构建。
+- 修复资源/打包步骤在无 `maps/` 目录时的无效 `add_custom_command(TARGET CNCS ...)` 调用。
+- 新增 Linux `portable` CI job：只构建 `CNCS_Core` + 单元测试，防止 core 再次悄悄引入 Win32 依赖。
+
+### 修复（代码缺陷）
+- 修复 `KalmanFilter` 观测矩阵 `H_` 维度声明写反（声明 `[StateDim][MeasDim]`，代码按
+  `[MeasDim][StateDim]` 使用），造成 4 处越界读取 UB（GCC `-Waggressive-loop-optimizations` 报出），
+  并直接污染速度估计。
+- 修复 `Ballistics::predict_impact` 单位混用：把「米」与「units/s」混算，飞行时间被放大约 39 倍
+  并被 `max_time` 截断，导致弹道预测与下坠补偿完全失真。现统一用游戏单位，并修正
+  `bullet_drop` 符号语义（正数=下坠量）与瞄点补偿方向。
+- 修复 `Result<void, E>::and_then` 只接受 `Result<void>` 的签名错误（应为任意 `Result<U, E>`），
+  并补齐 `and_then &&` / `or_else` / `map_err`；两处恒真 `static_assert` 改为真实约束 `is_result_v`。
+- 修复 `HighResTimer` 硬依赖 `<windows.h>`：改为 Windows 高精度可等待定时器 / POSIX
+  `clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME)` 双实现，接口不变。
+- 修复 `Result`/`Config`/`Visibility` 等 core 文件隐含依赖 PCH 注入的 `<fstream>`、`<iomanip>`、
+  `<windows.h>`、`WIN32_LEAN_AND_MEAN`，脱离 PCH 即编译失败的问题。
+- 修复 `Vec3_t` 使用 `__forceinline` 而没有非 MSVC 定义（新增 `Platform.hpp` 统一提供）。
+- 修复 `color_t` / `Vec2_t` 通过隐式包含 `imgui.h` 才拿到 `ImVec2/ImColor/ImVec4`，
+  造成 core 结构头对 GUI 库的隐蔽硬依赖；ImGui 互操作改为 `IMGUI_VERSION` 条件编译。
+
+### 新增（可移植层）
+- `core/util/Platform.hpp`：平台与编译器探测、`__forceinline` 跨编译器定义。
+- `core/util/PathUtils.hpp`：`util::ExeDir()` / `util::ExePath()`，Windows 用 `GetModuleFileNameA`、
+  POSIX 用 `/proc/self/exe`，替换两处各自重复实现的 Windows-only 版本。
+- `core/util/Log.hpp`：`CNCS_CORE_LOG(...)` 日志门面，可切换到 AsyncLogger，也可零依赖直写 stdout/stderr。
+
 - 移除内核驱动依赖：内存读取改为用户态实现 (OpenProcess + ReadProcessMemory + CreateToolhelp32Snapshot)
 - 删除 src/core/kernel (KdLoader) 与驱动错误码 (DriverLoadFailed 等)
 - 删除 driver/ 目录、CI 驱动构建步骤；架构文档重写为用户态版本

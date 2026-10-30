@@ -25,7 +25,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ProjectRoot = Resolve-Path "$ScriptDir\.."
+# 修复：build.ps1 就位于仓库根目录，原来又向上一级解析，导致 -S 指向
+# 仓库的父目录、CMakeLists.txt 找不到。
+$ProjectRoot = Resolve-Path $ScriptDir
 $BuildDir = "$ProjectRoot\build"
 $VcpkgRoot = $env:VCPKG_ROOT
 

@@ -1,5 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <core/util/KalmanFilter.hpp>
+
+// Catch2 v3 把 Approx 放在 Catch 命名空间下（v2 是全局），统一显式引入。
+using Catch::Approx;
 
 using Kalman3D = KalmanFilter<6, 3>;
 
@@ -41,9 +45,9 @@ TEST_CASE("KalmanFilter 基本功能", "[KalmanFilter]") {
         
         auto pos = kf.get_predicted_position();
         // 位置应该向新测量值靠拢
-        REQUIRE(pos[0] > 1.0f && pos[0] < 1.1f);
-        REQUIRE(pos[1] > 1.0f && pos[1] < 1.1f);
-        REQUIRE(pos[2] > 1.0f && pos[2] < 1.1f);
+        REQUIRE((pos[0] > 1.0f && pos[0] < 1.1f));
+        REQUIRE((pos[1] > 1.0f && pos[1] < 1.1f));
+        REQUIRE((pos[2] > 1.0f && pos[2] < 1.1f));
     }
     
     SECTION("速度估计") {
@@ -58,11 +62,13 @@ TEST_CASE("KalmanFilter 基本功能", "[KalmanFilter]") {
             kf.update(m);
         }
         
+        // 速度单位是 units/s，不是 units/frame：每帧(dt=0.016s)位移 1 单位
+        // 对应 1 / 0.016 = 62.5 units/s。原断言按 units/frame 写，量纲错误。
+        constexpr float kUnitsPerSecond = 1.0f / 0.016f; // 62.5
         auto vel = kf.get_velocity();
-        // 速度应该接近 1 单位/帧
-        REQUIRE(vel[0] > 0.5f && vel[0] < 2.0f);
-        REQUIRE(std::abs(vel[1]) < 0.5f);
-        REQUIRE(std::abs(vel[2]) < 0.5f);
+        REQUIRE(vel[0] == Approx(kUnitsPerSecond).epsilon(0.15f));
+        REQUIRE(std::abs(vel[1]) < 5.0f);
+        REQUIRE(std::abs(vel[2]) < 5.0f);
     }
     
     SECTION("重置功能") {

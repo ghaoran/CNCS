@@ -12,7 +12,10 @@ public:
     using StateVec = std::array<float, StateDim>;
     using MeasVec = std::array<float, MeasDim>;
     using Matrix = std::array<std::array<float, StateDim>, StateDim>;
-    using MeasMatrix = std::array<std::array<float, MeasDim>, StateDim>;
+    // 观测矩阵 H 的形状是 [MeasDim][StateDim]（测量维 x 状态维）。
+    // 原声明写反成 [StateDim][MeasDim]，使得 H_[i][k](i<MeasDim,k<StateDim) 越界读取，
+    // GCC -Waggressive-loop-optimizations 已报 4 处 UB；这里修正维度顺序。
+    using MeasMatrix = std::array<std::array<float, StateDim>, MeasDim>;
     using CovMatrix = Matrix;
     
     KalmanFilter() {

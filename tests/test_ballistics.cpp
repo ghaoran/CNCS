@@ -1,6 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <core/util/Ballistics.hpp>
 #include <core/engine/types/Vec3.hpp>
+
+// Catch2 v3 把 Approx 放在 Catch 命名空间下（v2 是全局），统一显式引入。
+using Catch::Approx;
 
 using namespace ballistics;
 
@@ -86,9 +90,9 @@ TEST_CASE("RecoilCompensation 基本功能", "[Ballistics]") {
     SECTION("超出范围返回零") {
         RecoilCompensation rc;
         auto comp = rc.get_compensation(0);
-        REQUIRE(comp.x == 0.0f && comp.y == 0.0f && comp.z == 0.0f);
+        REQUIRE((comp.x == 0.0f && comp.y == 0.0f && comp.z == 0.0f));
         
         comp = rc.get_compensation(65);
-        REQUIRE(comp.x == 0.0f && comp.y == 0.0f && comp.z == 0.0f);
+        REQUIRE((comp.x == 0.0f && comp.y == 0.0f && comp.z == 0.0f));
     }
 }

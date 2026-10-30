@@ -5,8 +5,12 @@ name: CNCS CI/CD
 on:
   push:
     branches: [main, develop]
+    # 修复：release job 的条件是 refs/tags/*，但这里原来只监听分支，
+    # 导致 tag 推送根本不触发 workflow，Release 永远不会产出。
+    tags: ['v*', '[0-9]*']
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -28,7 +32,7 @@ jobs:
           - configuration: Debug
             cmake_args: "-DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON"
           - configuration: Release
-            cmake_args: "-DCMAKE_BUILD_TYPE=Release"
+            cmake_args: "-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON"
 
     steps:
     - name: Checkout
@@ -71,9 +75,9 @@ jobs:
         cmake --build build --config ${{ matrix.configuration }} --parallel
 
     - name: Test
-      if: matrix.configuration == 'Debug'
       run: |
-        ctest --test-dir build --output-on-failure -C Debug
+        # CNCS_Core 已抽成可移植静态库，Debug/Release 都直接跑同一套用例。
+        ctest --test-dir build --output-on-failure -C ${{ matrix.configuration }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -85,25 +89,59 @@ jobs:
         retention-days: 30
         if-no-files-found: ignore
 
-    - name: Format check
+    - name: Format check (changed files only)
+      # 仅检查本次改动到的问题行：
+      #   1) 仓库历史代码尚未整体 clang-format（约 1.3 万处），全量检查没有信息量；
+      #   2) .clang-format 之前有重复键 PointerAlignment 和非法键 TemplateDepth，
+      #      clang-format 会直接拒绝读取整个配置 —— 已修复，现在配置可正常解析。
       continue-on-error: true
       run: |
-        # runner PATH 上的 clang-format 可能是无法启动的 Store stub,
-        # 用 vswhere 定位 VS 自带的真实 clang-format.exe
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        if (-not (Test-Path $vswhere)) { Write-Warning "vswhere not found, skipping format check"; exit 0 }
+        if (-not (Test-Path $vswhere)) { Write-Warning "vswhere not found, skipping"; exit 0 }
         $vsPath = & $vswhere -latest -property installationPath
-        if (-not $vsPath) { Write-Warning "VS not found, skipping format check"; exit 0 }
+        if (-not $vsPath) { Write-Warning "VS not found, skipping"; exit 0 }
         $clangFormat = Get-ChildItem "$vsPath\VC\Tools\Llvm" -Recurse -Filter clang-format.exe |
                          Select-Object -First 1 -ExpandProperty FullName
-        if (-not $clangFormat) { Write-Warning "clang-format not found in VS, skipping format check"; exit 0 }
+        if (-not $clangFormat) { Write-Warning "clang-format not found, skipping"; exit 0 }
         Write-Host "Using $clangFormat"
-        $files = Get-ChildItem -Recurse -Path src -Include *.cpp,*.hpp,*.h,*.c |
-                   Where-Object { $_.FullName -notmatch '\\external\\' } |
-                   Select-Object -ExpandProperty FullName
-        if ($files) {
-          & $clangFormat --dry-run --Werror $files
-        }
+
+        # 只取相对上一个提交新增/修改的 C++ 源文件，且排除 vendored 第三方目录
+        $changed = git diff --name-only --diff-filter=ACMR HEAD~1 HEAD 2>$null
+        $files = $changed |
+                   Where-Object { $_ -match '\.(cpp|hpp|h|c)$' } |
+                   Where-Object { $_ -notmatch '(^|/)(external|third_party)/' } |
+                   Where-Object { Test-Path $_ }
+        if (-not $files) { Write-Host "No changed C++ files, skipping"; exit 0 }
+
+        Write-Host "Checking $($files.Count) changed file(s)"
+        & $clangFormat --dry-run --Werror $files
+
+  # 可移植性守卫：Windows 专用 job 永远发现不了 core 里悄悄引入 <Windows.h>、
+  # d3d11 或 MSVC-only flag 的问题（历史上就是这些把 core 与测试一起带崩的）。
+  # 这个 job 在 Linux 上只构建 CNCS_Core + 单元测试，任何平台耦合都会立刻失败。
+  portable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install toolchain and deps
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq cmake ninja-build g++ catch2 libfmt-dev nlohmann-json3-dev zlib1g-dev
+
+    - name: Configure (portable core + tests)
+      run: |
+        cmake -S . -B build-portable -G Ninja           -DCMAKE_BUILD_TYPE=Debug           -DBUILD_TESTS=ON
+
+    - name: Build core and tests
+      run: cmake --build build-portable --parallel
+
+    - name: Run unit tests
+      run: ctest --test-dir build-portable --output-on-failure
 
   release:
     needs: build
@@ -113,20 +151,27 @@ jobs:
       run:
         shell: pwsh
     steps:
+    # release job 要读 src/embedded/*.m2，因此必须先 checkout 源码
+    - uses: actions/checkout@v4
+
     - uses: actions/download-artifact@v4
       with:
-        pattern: CNCS-*
-        merge-multiple: true
+        # 修复：原来 pattern 是 CNCS-*，会把 Debug 产物合并进来并与 Release
+        # 互相覆盖（同名 exe/pdb）。这里只取 Release 包。
+        name: CNCS-Release
         path: artifacts
 
     - name: Package
       run: |
         mkdir release -Force
-        # 复制 Release 目录内全部内容（CNCS.exe + 依赖 DLL）
-        Copy-Item "artifacts\bin\Release\*" release\ -Recurse -Force
-        if (Test-Path "src\embedded\*.m2") {
+        # download-artifact 已按目录结构展开，直接复制整个 Release 输出目录
+        # （CNCS.exe + 依赖 DLL + pdb）
+        Copy-Item "artifacts\Release\*" release\ -Recurse -Force
+        $embedded = Get-ChildItem "src\embedded\*.m2" -ErrorAction SilentlyContinue
+        if ($embedded) {
           mkdir release\maps -Force
-          copy src\embedded\*.m2 release\maps\
+          # 侧挂地图缓存：运行时从 exe 同级的 maps/ 目录读取
+          Copy-Item "src\embedded\*.m2" release\maps\
         }
 
     - name: Create Release

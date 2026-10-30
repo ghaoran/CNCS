@@ -82,128 +82,84 @@ inline std::optional<PredictionResult> predict_impact(
     const WeaponBallistics& ballistics,
     float max_time = 2.0f
 ) {
-    // Convert to meters for physics calculations
-    const float units_to_meters = 0.0254f;
-    const float meters_to_units = 39.3701f;
-    
-    Vec3_t rel_pos = target_pos - shooter_pos;
-    float distance = rel_pos.length();
-    
-    if (distance < 1.0f) return std::nullopt;
-    
-    // Initial estimate: time = distance / velocity.
-    // Convert unit-distance to meters first; dividing by (velocity * k) was
-    // wrong (initial estimate ended up ~39x too large and always hit max_time).
-    float time = (distance * units_to_meters) / ballistics.initial_velocity;
-    time = std::min(time, max_time);
-    
-    // Iterative solver for bullet drop and travel time
-    // Using simple drag model: dv/dt = -k*v^2 - g (for vertical)
-    // For horizontal: dv/dt = -k*v^2
-    
-    const int max_iterations = 10;
-    const float tolerance = 0.01f; // 1cm in meters
-    
-    for (int iter = 0; iter < max_iterations; ++iter) {
-        // Predict target position at time t
-        Vec3_t predicted_target = target_pos + target_vel * (time * meters_to_units);
-        Vec3_t to_target = predicted_target - shooter_pos;
-        float horiz_dist = sqrt(to_target.x * to_target.x + to_target.y * to_target.y);
-        float vert_dist = to_target.z;
-        
-        // Calculate bullet trajectory
-        // Horizontal motion with drag
-        float v0 = ballistics.initial_velocity;
-        float k = ballistics.drag_coefficient;
-        
-        // Analytical solution for quadratic drag: v(t) = v0 / (1 + k*v0*t)
-        // Distance: x(t) = (1/k) * ln(1 + k*v0*t)
-        // Invert: t = (exp(k*x) - 1) / (k*v0)
-        
-        float horiz_dist_m = horiz_dist * units_to_meters;
-        
-        // Time to travel horizontal distance
-        float k_v0 = k * v0;
-        if (k_v0 > 0.0f && horiz_dist_m > 0.0f) {
-            time = (expf(k * horiz_dist_m) - 1.0f) / k_v0;
-        } else {
-            time = horiz_dist_m / v0;
-        }
-        
-        // Clamp time
-        time = std::min(time, max_time);
-        
-        // Bullet drop due to gravity (with drag)
-        // Vertical: dvz/dt = -g - k*vz*|vz|
-        // Approximate: drop = 0.5 * g * t^2 (without drag) or numerical integration
-        float g = ballistics.gravity * units_to_meters; // m/s^2
-        
-        // Simple integration for vertical drop
-        float vz = 0.0f; // Initial vertical velocity (aiming horizontally)
-        float drop = 0.0f;
-        float dt = time / 100.0f;
-        for (int i = 0; i < 100; ++i) {
-            vz -= (g + k * vz * fabsf(vz)) * dt;
-            drop += vz * dt;
-        }
-        
-        // Check convergence
-        float new_horiz_dist = (target_pos + target_vel * (time * meters_to_units) - shooter_pos).length();
-        float new_horiz_dist_m = new_horiz_dist * units_to_meters;
-        
-        // Solve for time again with new distance
-        float new_time;
-        if (k_v0 > 0.0f && new_horiz_dist_m > 0.0f) {
-            new_time = (expf(k * new_horiz_dist_m) - 1.0f) / k_v0;
-        } else {
-            new_time = new_horiz_dist_m / v0;
-        }
-        
-        if (fabsf(new_time - time) < tolerance / v0) {
-            time = new_time;
-            break;
-        }
+    // 单位约定（这是原实现最大的坑）：
+    //   位置/速度           -> 游戏单位(unit)，1 unit = 0.0254 m
+    //   ballistics.initial_velocity -> units/s（from_weapon_index 已按 *39.37 换算）
+    //   ballistics.gravity          -> units/s^2
+    // 因此物理积分全程用游戏单位，毫不再做 unit<->m 来回换算；
+    // 原先把"米"和"units/s"混用，时间被放大约 39 倍并直接被 max_time 截断。
+    const Vec3_t rel_pos = target_pos - shooter_pos;
+    const float distance = rel_pos.length();
+    if (distance < 1.0f)
+        return std::nullopt;
+
+    const float v0 = ballistics.initial_velocity;
+    if (v0 <= 0.0f || max_time <= 0.0f)
+        return std::nullopt;
+
+    const float k = ballistics.drag_coefficient;
+    const float k_v0 = k * v0;
+
+    // 水平距离 -> 飞行时间。
+    // 二次阻力解析解：x(t) = ln(1 + k*v0*t)/k  =>  t = (exp(k*x) - 1)/(k*v0)
+    // k == 0 时退化为匀速 t = x / v0。
+    auto time_for_distance = [&](float horiz_units) -> float {
+        if (horiz_units <= 0.0f)
+            return 0.0f;
+        if (k_v0 > 1e-8f)
+            return (std::exp(k * horiz_units) - 1.0f) / k_v0;
+        return horiz_units / v0;
+    };
+
+    // 目标在 t 时刻的位置（t 单位秒，target_vel 单位 units/s）。
+    auto predict_target = [&](float t) -> Vec3_t {
+        return target_pos + target_vel * t;
+    };
+
+    // 固定点迭代：先用静止假设估时，再用预测位置重算，收敛即止。
+    float time = std::min(time_for_distance(distance), max_time);
+    constexpr int kMaxIterations = 8;
+    constexpr float kTolerance = 1e-4f; // 0.1ms
+
+    for (int iter = 0; iter < kMaxIterations; ++iter) {
+        const Vec3_t predicted = predict_target(time);
+        const Vec3_t to_target = predicted - shooter_pos;
+        const float horiz = std::sqrt(to_target.x * to_target.x + to_target.y * to_target.y);
+
+        float new_time = time_for_distance(horiz);
+        new_time = std::min(new_time, max_time);
+
+        const float delta = std::fabs(new_time - time);
         time = new_time;
+        if (delta < kTolerance)
+            break;
     }
-    
-    // Final prediction
-    Vec3_t predicted_target = target_pos + target_vel * (time * meters_to_units);
-    Vec3_t to_target = predicted_target - shooter_pos;
-    float horiz_dist = sqrt(to_target.x * to_target.x + to_target.y * to_target.y);
-    float horiz_dist_m = horiz_dist * units_to_meters;
-    
-    // Final time
-    float k_v0 = ballistics.drag_coefficient * ballistics.initial_velocity;
-    float final_time;
-    if (k_v0 > 0.0f && horiz_dist_m > 0.0f) {
-        final_time = (expf(ballistics.drag_coefficient * horiz_dist_m) - 1.0f) / k_v0;
-    } else {
-        final_time = horiz_dist_m / ballistics.initial_velocity;
-    }
-    final_time = std::min(final_time, max_time);
-    
-    // Final drop calculation
-    float g = ballistics.gravity * units_to_meters;
+
+    const float final_time = std::min(time, max_time);
+    const Vec3_t predicted_target = predict_target(final_time);
+
+    // 重力下坠（游戏单位）。子弹初始垂直速度按 0 计算（平射基准），
+    // 用半隐式欧拉积分更稳：先更新速度再累加位移。
+    const float g = ballistics.gravity;
     float vz = 0.0f;
-    float drop = 0.0f;
-    float dt = final_time / 100.0f;
-    for (int i = 0; i < 100; ++i) {
-        vz -= (g + ballistics.drag_coefficient * vz * fabsf(vz)) * dt;
-        drop += vz * dt;
+    float drop = 0.0f; // 正数 = 下坠量（与 PredictionResult 注释一致）
+    constexpr int kSteps = 64;
+    const float dt = final_time / static_cast<float>(kSteps);
+    for (int i = 0; i < kSteps; ++i) {
+        // 垂直方向同样受二次阻力影响：dvz/dt = -g - k*vz*|vz|
+        vz -= (g + k * vz * std::fabs(vz)) * dt;
+        drop -= vz * dt; // vz 为负（向下），取负得到正的下坠量
     }
-    
-    // Compensate aim point
-    Vec3_t aim_point = predicted_target;
-    aim_point.z -= drop * meters_to_units; // Compensate for drop
-    
+
     PredictionResult result;
-    result.aim_point = aim_point;
     result.time_to_impact = final_time;
-    result.bullet_drop = drop * meters_to_units;
+    result.bullet_drop = drop;                 // 正数：下坠多少游戏单位
+    result.aim_point = predicted_target;
+    result.aim_point.z += drop;                // 抬高瞄点以补偿下坠
     result.valid = true;
-    
     return result;
 }
+
 
 // Recoil compensation
 struct RecoilCompensation {

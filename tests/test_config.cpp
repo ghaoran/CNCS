@@ -1,7 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <core/config/Config.hpp>
+#include <config/Config.hpp>
 #include <filesystem>
 #include <fstream>
+
 
 TEST_CASE("Config 读写功能", "[Config]") {
     SECTION("默认配置创建") {

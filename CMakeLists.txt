@@ -10,6 +10,18 @@ project(CNCS
 )
 
 # -----------------------------------------------------------------------------
+# Target platform
+# -----------------------------------------------------------------------------
+# 显式建模"目标平台是否为 Windows"，供后续所有 Windows 专属依赖做条件化。
+# 原来所有 /W4、d3d11、resource.rc 都无条件添加，GCC/Clang 一旦尝试配置就
+# 直接失败；这也是 CI 无法在 Linux 上跑单元测试的根因之一。
+if(WIN32)
+    set(CNCS_PLATFORM_WINDOWS_TARGET ON)
+else()
+    set(CNCS_PLATFORM_WINDOWS_TARGET OFF)
+endif()
+
+# -----------------------------------------------------------------------------
 # Policies & Standards
 # -----------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 20)
@@ -44,18 +56,27 @@ endif()
 # -----------------------------------------------------------------------------
 # Build Configurations
 # -----------------------------------------------------------------------------
-set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+# 仅多配置生成器（VS / Xcode）需要显式收敛配置集；Ninja/Make 下强制设置会让
+# 单配置构建的 CMAKE_BUILD_TYPE 失效。
+get_property(CNCS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if(CNCS_MULTI_CONFIG)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+endif()
 
-# 静态链接 CRT：/MT 多线程静态（无需随程序带 vcruntime/ucrt DLL），
-# 与 vcpkg 的 x64-windows-static triplet 配套（fmt/zlib 等静态库不再需 DLL）。
-# Debug: /MTd = debug CRT (defines _DEBUG automatically), /Zi = PDB, /Ob0 = no inline, /Od = no opt, /RTC1 = runtime checks
-set(CMAKE_CXX_FLAGS_DEBUG "/MTd /Zi /Ob0 /Od /RTC1 /D_DEBUG")
+# 编译选项按编译器分流：/MT、/GL、/Zi 等是 MSVC 专属，硬写会污染 GCC/Clang 构建
+# （CI 里 Linux 侧的静态检查、单元测试就是被这些选项打断的）。
+if(MSVC)
+    # 静态链接 CRT：/MT 多线程静态（无需随程序带 vcruntime/ucrt DLL），
+    # 与 vcpkg 的 x64-windows-static triplet 配套（fmt/zlib 等静态库不再需 DLL）。
+    # Debug: /MTd = debug CRT, /Zi = PDB, /Ob0 = no inline, /Od = no opt, /RTC1 = runtime checks
+    set(CMAKE_CXX_FLAGS_DEBUG "/MTd /Zi /Ob0 /Od /RTC1 /D_DEBUG")
 
-# Release: /MT = release CRT, /O2 = max speed, /Ob2 = inline any, /GL = LTCG, /DNDEBUG = no asserts
-set(CMAKE_CXX_FLAGS_RELEASE "/MT /O2 /Ob2 /GL /DNDEBUG")
+    # Release: /MT = release CRT, /O2 = max speed, /Ob2 = inline any, /GL = LTCG, /DNDEBUG = no asserts
+    set(CMAKE_CXX_FLAGS_RELEASE "/MT /O2 /Ob2 /GL /DNDEBUG")
 
-# Whole Program Optimization for Release
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    # Whole Program Optimization for Release（LTCG，仅 MSVC 有意义）
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+endif()
 
 # Output directories
 # 使用 $<CONFIG> 生成器表达式：Visual Studio 多配置生成器下 CMAKE_BUILD_TYPE 为空，
@@ -81,9 +102,17 @@ endif()
 # Source File Groups (for IDE organization)
 # -----------------------------------------------------------------------------
 # Explicit source file list - avoids picking up imgui examples, json tests, etc.
-set(CNCS_SOURCES
-    src/common.cpp
+# 可移植核心：零 Win32 / DX11 / imgui 依赖，任何平台都能编译，单元测试直接链接。
+# 只放真正跨平台的逻辑（配置序列化、碰撞几何与可见性、纯数学工具）。
+set(CNCS_CORE_SOURCES
     src/config/Config.cpp
+    src/core/visibility/CollisionMesh.cpp
+    src/core/visibility/Visibility.cpp
+)
+
+# 引擎层：进程内存读写（OpenProcess/ReadProcessMemory）、实体缓存、偏移 dump。
+# 这部分天然依赖 <Windows.h>，因此只在 Windows 目标下构建。
+set(CNCS_ENGINE_SOURCES
     src/core/engine/Engine.cpp
     src/core/engine/cache/Cache.cpp
     src/core/engine/classes/Bomb.cpp
@@ -93,10 +122,13 @@ set(CNCS_SOURCES
     src/core/engine/classes/Player.cpp
     src/core/engine/classes/Weapon.cpp
     src/core/logger/LogHelper.cpp
+    src/core/logger/AsyncLoggerImpl.cpp
     src/core/memory/Memory.cpp
     src/core/offsets/Dumper.cpp
-    src/core/visibility/CollisionMesh.cpp
-    src/core/visibility/Visibility.cpp
+)
+
+# Windows / DX11 专属：渲染、覆盖层窗口、ImGui 后端以及 main()。
+set(CNCS_GUI_SOURCES
     src/external/imgui/imgui.cpp
     src/external/imgui/imgui_demo.cpp
     src/external/imgui/imgui_draw.cpp
@@ -104,7 +136,6 @@ set(CNCS_SOURCES
     src/external/imgui/imgui_widgets.cpp
     src/external/imgui/backends/imgui_impl_win32.cpp
     src/external/imgui/backends/imgui_impl_dx11.cpp
-    src/core/logger/AsyncLoggerImpl.cpp
     src/gui/frontend/aimbot/Aimbot.cpp
     src/gui/frontend/esp/Esp.cpp
     src/gui/frontend/menu/Menu.cpp
@@ -114,7 +145,10 @@ set(CNCS_SOURCES
     src/gui/renderer/window/Window.cpp
     src/main.cpp
     src/pch_core.cpp
+    src/common.cpp   # pch_core.hpp 的占位 TU（无实际逻辑），跟随 PCH 归入 GUI 目标
 )
+
+set(CNCS_SOURCES ${CNCS_CORE_SOURCES} ${CNCS_ENGINE_SOURCES} ${CNCS_GUI_SOURCES})
 
 file(GLOB_RECURSE CNCS_HEADERS
     "src/*.hpp"
@@ -136,86 +170,137 @@ find_package(fmt REQUIRED)
 # ImGui - we use our bundled version (src/external/imgui)
 
 # -----------------------------------------------------------------------------
-# Main Executable Target
+# CNCS_Core - Portable Static Library
 # -----------------------------------------------------------------------------
-add_executable(CNCS
-    ${CNCS_SOURCES}
+# 关键修复：原来的 CMakeLists 只有可执行目标 CNCS，单元测试却
+# `target_link_libraries(CNCS_tests PRIVATE ... CNCS)` —— CMake 直接报
+#   Target "CNCS" of type EXECUTABLE may not be linked into another target
+# 导致 configure 阶段就失败，Debug/CI 全红，Release 也就永远不会产出。
+# 现在把可移植逻辑收敛成静态库 CNCS_Core：
+#   - 测试链接 CNCS_Core（合法，且不需要 imgui / DX11 / Win32 资源）
+#   - 可执行文件 CNCS 链接 CNCS_Core + GUI 源
+add_library(CNCS_Core STATIC
+    ${CNCS_CORE_SOURCES}
     ${CNCS_HEADERS}
-    "src/resource.rc"
 )
 
-target_compile_definitions(CNCS PRIVATE
-    _CONSOLE
+target_compile_features(CNCS_Core PUBLIC cxx_std_20)
+
+target_compile_definitions(CNCS_Core PUBLIC
     IMGUI_DEFINE_MATH_OPERATORS
-    _WIN32_WINNT=0x0A00
     NOMINMAX
-    UNICODE
-    _UNICODE
 )
 
-# Include directories
-target_include_directories(CNCS PRIVATE
+if(CNCS_PLATFORM_WINDOWS_TARGET)
+    target_compile_definitions(CNCS_Core PUBLIC _CONSOLE _WIN32_WINNT=0x0A00 UNICODE _UNICODE)
+endif()
+
+target_include_directories(CNCS_Core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include/AsyncLogger
 )
 
-# Precompiled Headers
-set(PCH_CORE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.hpp")
-set(PCH_CORE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.cpp")
-
-# Use target_precompile_headers (CMake 3.16+) for core PCH
-target_precompile_headers(CNCS PRIVATE
-    ${PCH_CORE_HEADER}
-)
-
-# Set the PCH header for the target
-set_target_properties(CNCS PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
-
-# Link libraries
-target_link_libraries(CNCS PRIVATE
+target_link_libraries(CNCS_Core PUBLIC
     nlohmann_json::nlohmann_json
     ZLIB::ZLIB
     fmt::fmt
-    # System libraries
-    d3d11
-    dxgi
-    d3dcompiler
-    dwmapi
-    gdi32
-    user32
-    imm32
-    ole32
-    ws2_32
-    wldap32
-    crypt32
-    normaliz
-    advapi32
-    bcrypt
-    setupapi
 )
 
-# MSVC-specific link options
-if(MSVC)
-    target_link_options(CNCS PRIVATE
-        /SUBSYSTEM:CONSOLE
-        /DEBUG:FULL
-        /OPT:REF
-        /OPT:ICF
+# 说明：Win32 / DX11 系统库只挂在 Windows 目标上（见下方 CNCS 目标）。
+# core 库本身不引用任何系统库，保证在 Linux/macOS 上也能编译并测试。
+
+# PCH 只供 GUI 目标使用：core 库保持无隐式全局注入，测试编译更干净。
+# -----------------------------------------------------------------------------
+# Main Executable Target
+# -----------------------------------------------------------------------------
+if(CNCS_PLATFORM_WINDOWS_TARGET)
+    message(STATUS "CNCS: Windows 目标 -> 构建 CNCS.exe (GUI) + CNCS_Core + 单元测试")
+
+    add_executable(CNCS
+        ${CNCS_ENGINE_SOURCES}
+        ${CNCS_GUI_SOURCES}
+        "src/resource.rc"
     )
+    target_compile_definitions(CNCS PRIVATE
+        _CONSOLE
+        IMGUI_DEFINE_MATH_OPERATORS
+        _WIN32_WINNT=0x0A00
+        NOMINMAX
+        UNICODE
+        _UNICODE
+        # 让 core 的 CNCS_CORE_LOG 转发到 AsyncLogger（GUI 侧需要控制台着色输出）
+        CNCS_ENABLE_ASYNC_LOGGER
+    )
+
+    # Include directories（imgui 仅 GUI 目标可见）
+    target_include_directories(CNCS PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/external
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/external/imgui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/external/json/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/external/AsyncLogger/include/AsyncLogger
+    )
+
+    # Precompiled Headers（只给 GUI 目标，避免把 windows.h/imgui 注入 core 与测试）
+    set(PCH_CORE_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.hpp")
+    set(PCH_CORE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/pch_core.cpp")
+
+    target_precompile_headers(CNCS PRIVATE
+        ${PCH_CORE_HEADER}
+    )
+
+    set_target_properties(CNCS PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
+
+    # 依赖与系统库：CNCS_Core 以 PUBLIC 传递 nlohmann_json/zlib/fmt，
+    # 这里补引擎层与渲染所需的 Win32 / DX11 系统库。
+    target_link_libraries(CNCS PRIVATE
+        CNCS_Core
+        nlohmann_json::nlohmann_json
+        ZLIB::ZLIB
+        fmt::fmt
+        d3d11
+        dxgi
+        d3dcompiler
+        dwmapi
+        gdi32
+        user32
+        imm32
+        ole32
+        ws2_32
+        wldap32
+        crypt32
+        normaliz
+        advapi32
+        bcrypt
+        setupapi
+    )
+
+    # MSVC-specific link options
+    if(MSVC)
+        target_link_options(CNCS PRIVATE
+            /SUBSYSTEM:CONSOLE
+            /DEBUG:FULL
+            /OPT:REF
+            /OPT:ICF
+        )
+    endif()
+else()
+    # 非 Windows 平台没有渲染/overlay 后端，只构建可移植 core 与单元测试。
+    message(STATUS "CNCS: 非 Windows 目标 -> 仅构建 CNCS_Core 与单元测试")
 endif()
 
 # -----------------------------------------------------------------------------
 # Custom Targets
 # -----------------------------------------------------------------------------
 # Copy embedded collision meshes to output directory (only if maps/ exists)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
+if(CNCS_PLATFORM_WINDOWS_TARGET AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
     file(GLOB MAP_GLB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.glb")
     file(GLOB MAP_COLMESH_FILES "${CMAKE_CURRENT_SOURCE_DIR}/maps/*.colmesh")
     if(MAP_GLB_FILES OR MAP_COLMESH_FILES)
@@ -233,10 +318,16 @@ endif()
 # -----------------------------------------------------------------------------
 # Installation (optional)
 # -----------------------------------------------------------------------------
-install(TARGETS CNCS
-    RUNTIME DESTINATION bin
-    BUNDLE DESTINATION .
-)
+if(CNCS_PLATFORM_WINDOWS_TARGET)
+    install(TARGETS CNCS
+        RUNTIME DESTINATION bin
+        BUNDLE DESTINATION .
+    )
+else()
+    install(TARGETS CNCS_Core
+        ARCHIVE DESTINATION lib
+    )
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/maps")
     install(DIRECTORY maps/
@@ -253,18 +344,21 @@ if(BUILD_TESTS)
     enable_testing()
     find_package(Catch2 3 REQUIRED)
     
+    # 只收录不依赖 GUI/Win32 状态的用例；test_aimbot / test_cache 依赖
+    # 引擎单例与热键状态，留在 Windows 全量构建里跑。
     add_executable(CNCS_tests
-        tests/test_cache.cpp
         tests/test_visibility.cpp
-        tests/test_aimbot.cpp
         tests/test_config.cpp
         tests/test_kalman.cpp
         tests/test_ballistics.cpp
         tests/test_result.cpp
         tests/test_highrestimer.cpp
         tests/test_core.cpp
+        tests/test_regression.cpp
     )
-    target_link_libraries(CNCS_tests PRIVATE Catch2::Catch2WithMain CNCS)
+    # 修复：原来链接的是可执行文件 CNCS，CMake 会在 configure 阶段报错。
+    target_link_libraries(CNCS_tests PRIVATE Catch2::Catch2WithMain CNCS_Core)
+    target_include_directories(CNCS_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     add_test(NAME CNCS_tests COMMAND CNCS_tests)
 endif()
 

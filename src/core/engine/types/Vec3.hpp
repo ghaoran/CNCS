@@ -1,4 +1,5 @@
 #pragma once
+#include "core/util/Platform.hpp"
 #include <numbers>
 #include <cmath>
 #include <limits>

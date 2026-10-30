@@ -5,6 +5,20 @@
 #include <system_error>
 #include <utility>
 #include <functional>
+#include <type_traits>
+
+namespace detail {
+    template <typename T, typename = void>
+    struct is_result : std::false_type {};
+
+    template <typename T>
+    struct is_result<T, std::void_t<typename T::value_type, typename T::error_type>>
+        : std::true_type {};
+}
+
+// 编译期判定是否为 Result 家族（含 Result<void, E> 偏特化）。
+template <typename T>
+inline constexpr bool is_result_v = detail::is_result<std::decay_t<T>>::value;
 
 // Result type for unified error handling
 // Replaces bool return values with proper error information
@@ -70,7 +84,7 @@ public:
     template <typename F>
     auto and_then(F&& f) & {
         using U = std::invoke_result_t<F, T&>;
-        static_assert(std::is_same_v<typename U::value_type, typename U::value_type>, "and_then must return Result");
+        static_assert(is_result_v<U>, "and_then must return a Result");
         if (is_err()) return U::Err(std::move(error()));
         return f(value());
     }
@@ -78,7 +92,7 @@ public:
     template <typename F>
     auto and_then(F&& f) && {
         using U = std::invoke_result_t<F, T&&>;
-        static_assert(std::is_same_v<typename U::value_type, typename U::value_type>, "and_then must return Result");
+        static_assert(is_result_v<U>, "and_then must return a Result");
         if (is_err()) return U::Err(std::move(error()));
         return f(std::move(value()));
     }
@@ -176,12 +190,37 @@ public:
         return std::get<1>(data_); 
     }
     
+    // Result<void> 的链式延续：目标可以是任意 Result<U, E>，不要求 U == void。
     template <typename F>
     auto and_then(F&& f) & {
         using U = std::invoke_result_t<F>;
-        static_assert(std::is_same_v<typename U::value_type, void>, "and_then must return Result<void>");
+        static_assert(is_result_v<U>, "and_then must return a Result");
         if (is_err()) return U::Err(error());
         return f();
+    }
+
+    template <typename F>
+    auto and_then(F&& f) && {
+        using U = std::invoke_result_t<F>;
+        static_assert(is_result_v<U>, "and_then must return a Result");
+        if (is_err()) return U::Err(std::move(error()));
+        return f();
+    }
+
+    template <typename F>
+    auto or_else(F&& f) & {
+        using U = std::invoke_result_t<F, E&>;
+        static_assert(std::is_same_v<typename U::value_type, void>, "or_else must return Result<void>");
+        if (is_ok()) return *this;
+        return f(error());
+    }
+
+    template <typename F>
+    auto map_err(F&& f) & {
+        using NewError = std::invoke_result_t<F, E&>;
+        using NewResult = Result<void, NewError>;
+        if (is_ok()) return NewResult::Ok();
+        return NewResult::Err(f(error()));
     }
     
     explicit operator bool() const { return is_ok(); }

@@ -1,4 +1,6 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include "core/engine/types/Vec3.hpp"
