@@ -133,10 +133,13 @@ void Renderer::DestroyImpl() {
 }
 
 void Renderer::ThreadImpl() {
+    using clock = std::chrono::steady_clock;
+    auto last_frame = clock::now();
+
     while (isRunning) {
         Render();
 
-        // Signal frame completion
+        // Signal frame completion（供主线程 WaitForFrame 使用）
         SignalFrameReadyImpl();
 
         // 热键全局响应：GetAsyncKeyState 本就是全局按键轮询，不依赖前台
@@ -147,10 +150,23 @@ void Renderer::ThreadImpl() {
             continue; // It will cause flickering if we handle window order after window closes
 
         HandleWindowOrder();
-        
-        // Precise sleep when game is unfocused to reduce CPU usage
+
+        // 渲染节流：vsync 关闭时 Present(0,0) 不阻塞，本循环会以纯 CPU 速度空转
+        // （既吃满一个核，也让按键轮询/窗口跟随抖动）。这里按目标帧率补足节流；
+        // vsync 打开时由 Present 自身限速，不再额外等待。
+        if (!Window::vsync.load()) { // atomic 需显式 load（拷贝赋值已删除）
+            constexpr auto kTargetFrame = std::chrono::microseconds(1000000 / 144); // 144 FPS 上限
+            const auto now = clock::now();
+            const auto spent = now - last_frame;
+            if (spent < kTargetFrame)
+                std::this_thread::sleep_for(kTargetFrame - spent);
+            last_frame = clock::now();
+        } else {
+            last_frame = clock::now();
+        }
+
+        // 游戏未聚焦时进一步降频，减少后台占用
         if (!isFocused) {
-            // Use waitable timer for high-precision sleep (~1ms resolution)
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
     }
@@ -178,13 +194,18 @@ void Renderer::Render() {
     Aimbot::Run();
     Aimbot::RunTriggerbot();
 
-    Esp::Render();
-    Overlays::Render();
-
-    Aimbot::Render();
-
-    Menu::RenderStartupHelp();
-    if (isOpen) Menu::Render();
+    // 菜单打开时不再绘制 ESP / 覆盖层 / FOV 圈：
+    // 这些元素都画在背景绘制列表上，会盖在菜单窗口之上，且与"调设置"的场景冲突。
+    // 菜单关闭时恢复全部绘制。
+    const bool menu_open = isOpen.load();
+    if (!menu_open) {
+        Esp::Render();
+        Overlays::Render();
+        Aimbot::Render();
+        Menu::RenderStartupHelp();
+    } else {
+        Menu::Render();
+    }
 
     Window::EndRender();
 }
@@ -199,23 +220,36 @@ bool Renderer::HandleState() {
 
     bool pressed_end = (GetAsyncKeyState(VK_END) & 0x8000);
 
-    bool should_toggle = !was_holding && (pressed_insert || pressed_rshift);
+    // 只在"刚按下"的那一帧翻转，避免长按连续切换。
+    const bool should_toggle = !was_holding && (pressed_insert || pressed_rshift);
 
-    if (should_toggle || pressed_end) { // Toggle when pressing end to trigger the config save :v
-        this->isOpen = !isOpen;
+    // End 键语义修正：原来 End 既翻转 isOpen 又立刻把 isRunning 置 false，
+    // 实际效果是"按 End = 退出程序"，而不是界面上写的"关闭菜单"。
+    // 现在 End 只负责关闭菜单（菜单已关时无副作用），不再终止渲染线程。
+    const bool should_close = !was_holding && pressed_end && this->isOpen;
 
-        // Release cursor when opening the menu
-        // Sometimes flashes the render as its handling the window order
+    if (should_toggle || should_close) {
+        this->isOpen = should_toggle ? !isOpen.load() : false;
+
         if (this->isOpen) {
+            // 菜单需要键盘/鼠标：窗口必须可见、可点、并在前台。
+            ShowWindow(Window::hwnd, SW_SHOW);
+            Window::SetClickthrough(Window::hwnd, false);
             SetForegroundWindow(Window::hwnd);
+            // 覆盖层是全屏透明窗口，必须让 ImGui 拿到鼠标位置与点击，
+            // 否则菜单能显示但点不动。
+            Window::SetMouseCapture(Window::hwnd, true);
         } else {
-            // 尽力把焦点还给游戏；进程已退出/句柄失效时跳过
+            Window::SetMouseCapture(Window::hwnd, false);
+            Window::SetClickthrough(Window::hwnd, true);
+            // 关菜单时把焦点还给游戏；进程已退出/句柄失效时跳过
             if (auto p = Engine::GetProcess(); p && p->hwnd_)
                 SetForegroundWindow(p->hwnd_);
         }
 
-        Window::SetClickthrough(Window::hwnd, !this->isOpen);
-        LOGF(VERBOSE, "捕获到 Insert 或右Shift，菜单状态切换为 {}", this->isOpen.load());
+        LOGF(VERBOSE, "菜单状态切换为 {}（触发键: {}）",
+             this->isOpen.load(),
+             should_toggle ? "Insert/右Shift" : "End");
 
         // 使用独立线程确保进程退出时不会崩溃
         if (g_config_writer.joinable())
@@ -223,11 +257,8 @@ bool Renderer::HandleState() {
         g_config_writer = std::thread(Config::Write);
     }
 
-    if (pressed_end)
-        this->isRunning = false;
-
-    was_holding = pressed_insert || pressed_rshift;
-    return should_toggle;
+    was_holding = pressed_insert || pressed_rshift || pressed_end;
+    return should_toggle || should_close;
 }
 
 bool Renderer::HandleWindowOrder() {
@@ -240,22 +271,27 @@ bool Renderer::HandleWindowOrder() {
     if (!IsWindow(p->hwnd_))
         this->isRunning = false;
 
-    static bool overlay_visible = true;
+    // 用 IsWindowVisible 作为唯一权威状态，不再维护 static overlay_visible。
+    // 原先的 static 只在两个分支里翻转：一旦窗口在菜单未打开时被 SW_HIDE，
+    // 之后进入"菜单已打开"的路径就再也不走 SW_SHOW —— 于是按 Insert 后
+    // isOpen 已为 true、菜单也在绘制，但窗口仍处于隐藏状态，表现为"Menu 唤不出"。
     auto foreground = GetForegroundWindow();
     this->isFocused = (foreground == Window::hwnd || foreground == p->hwnd_);
+    const bool window_visible = IsWindowVisible(Window::hwnd) != FALSE;
 
-    // 菜单打开时即使失焦也保持覆盖层可见，否则菜单会被意外藏掉
-    if (!this->isFocused && !this->isOpen && overlay_visible) {
-        LOGF(VERBOSE, "游戏未聚焦，隐藏叠加层窗口");
-        ShowWindow(Window::hwnd, SW_HIDE);
-        overlay_visible = false;
+    // 只有"菜单关闭 且 游戏/覆盖层都不在前台"时才隐藏，避免无谓占用前台。
+    if (!this->isFocused && !this->isOpen) {
+        if (window_visible) {
+            LOGF(VERBOSE, "游戏未聚焦且菜单关闭，隐藏叠加层窗口");
+            ShowWindow(Window::hwnd, SW_HIDE);
+        }
         return true;
     }
 
-    if (!overlay_visible && this->isFocused) {  
-        LOGF(VERBOSE, "游戏已聚焦，显示叠加层窗口");
+    // 菜单已打开或焦点回到游戏/覆盖层：必须确保窗口可见，否则菜单不可见。
+    if (!window_visible) {
+        LOGF(VERBOSE, "叠加层窗口应为可见状态（菜单打开或已聚焦），重新显示");
         ShowWindow(Window::hwnd, SW_SHOW);
-        overlay_visible = true;
         return true;
     }
 

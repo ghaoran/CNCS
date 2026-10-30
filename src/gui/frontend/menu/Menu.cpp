@@ -420,12 +420,13 @@ void Menu::RenderStartupHelpImpl() {
 	if (has_opened_menu)
 		return;
 
+	// 一旦菜单被打开过就永久隐藏提示，避免长期遮挡画面
+	if (Renderer::IsOpen())
+		has_opened_menu = true;
+
 	auto& io = ImGui::GetIO();
 	auto screen = io.DisplaySize;
 	auto d = ImGui::GetBackgroundDrawList();
-
-	if (Renderer::IsOpen())
-		has_opened_menu = true;
 
 	auto help = "按 Insert 或 右Shift 键 打开菜单"
 		"\n\t\t\t\t按 End 键 关闭菜单";

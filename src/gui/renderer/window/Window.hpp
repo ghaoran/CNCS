@@ -39,6 +39,8 @@ public:
 	static void SetTopMost(HWND window, bool up_down = true);
 	static void SetClickthrough(HWND window, bool clickthrough = true);
 	static void SetBounds(HWND window, RECT bounds);
+	// 菜单打开/关闭时接管或释放鼠标（配合 SetClickthrough 使用）
+	static void SetMouseCapture(HWND window, bool capture);
 	static bool SetAffinity(HWND window, WindowAffinity afi);
 	static void SetForeground(HWND window);
 	static void SetVSync(bool enable = false);

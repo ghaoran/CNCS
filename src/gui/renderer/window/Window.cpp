@@ -274,6 +274,9 @@ void Window::SetTopMost(HWND window, bool up_down) {
 
 void Window::SetClickthrough(HWND window, bool clickthrough)
 {
+	if (!window)
+		return;
+
 	LONG_PTR style = GetWindowLongPtr(window, GWL_EXSTYLE);
 
 	style |= WS_EX_LAYERED;
@@ -284,6 +287,35 @@ void Window::SetClickthrough(HWND window, bool clickthrough)
 		style &= ~WS_EX_TRANSPARENT;
 
 	SetWindowLongPtr(window, GWL_EXSTYLE, style);
+
+	// 仅改 GWL_EXSTYLE 不会立刻生效：必须触发一次 SWP_FRAMECHANGED，
+	// 否则"菜单打开后关掉穿透"这一步可能被系统忽略，表现为菜单可见但点不动。
+	SetWindowPos(window, nullptr, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+}
+
+// 菜单打开时需要接管鼠标：把覆盖层窗口设成可捕获鼠标的前台窗口。
+// 覆盖层默认带 WS_EX_TRANSPARENT（鼠标穿透），仅靠 SetClickthrough 去掉穿透
+// 仍可能拿不到输入焦点，这里显式做一次捕获/释放。
+void Window::SetMouseCapture(HWND window, bool capture)
+{
+	if (!window)
+		return;
+
+	if (capture) {
+		// 关闭穿透 + 提到前台 + 捕获，三步缺一不可。
+		SetClickthrough(window, false);
+		SetForegroundWindow(window);
+		SetActiveWindow(window);
+		::SetCapture(window);
+	} else {
+		if (::GetCapture() == window)
+			::ReleaseCapture();
+		SetClickthrough(window, true);
+	}
+
+	// 注意：这里不主动塞 ImGui 鼠标事件。鼠标位置由 ImGui_ImplWin32_NewFrame
+	// 自行读取，手工回灌 io.MousePos 只会造成伪同步。
 }
 
 void Window::SetBounds(HWND window, RECT bounds) {
