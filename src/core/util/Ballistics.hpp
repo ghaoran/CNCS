@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <numbers>
 #include <optional>
 #include "core/engine/types/Vec3.hpp"
 #include "core/util/KalmanFilter.hpp"
@@ -186,8 +187,14 @@ struct RecoilCompensation {
         Vec3_t comp = get_compensation(shots_fired);
         // Convert punch angles to aim offset
         // punch is in degrees, convert to radians
-        float pitch_rad = -comp.x * M_PI / 180.0f; // Negative because punch up = aim down
-        float yaw_rad = comp.y * M_PI / 180.0f;
+        // 用 std::numbers::pi 而不是 M_PI：M_PI 只在定义了 _USE_MATH_DEFINES 的
+        // <cmath> 中提供，原先完全依赖 pch_core.hpp 注入；core 模块脱离 PCH 后
+        // MSVC 直接报 C2065: 'M_PI': undeclared identifier。
+        constexpr float kPi = std::numbers::pi_v<float>;
+        const float pitch_rad = -comp.x * kPi / 180.0f; // punch up => aim down
+        const float yaw_rad = comp.y * kPi / 180.0f;
+        (void)pitch_rad;
+        (void)yaw_rad;
         
         // Simple compensation (would need view matrix for proper 3D)
         return aim_point; // Placeholder - full implementation needs view matrix
