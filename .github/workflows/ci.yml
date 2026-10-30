@@ -153,6 +153,9 @@ jobs:
     needs: build
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     runs-on: windows-latest
+    # action-gh-release 需要 contents: write，否则创建 Release 会 403。
+    permissions:
+      contents: write
     defaults:
       run:
         shell: pwsh
@@ -170,15 +173,33 @@ jobs:
     - name: Package
       run: |
         mkdir release -Force
-        # download-artifact 已按目录结构展开，直接复制整个 Release 输出目录
-        # （CNCS.exe + 依赖 DLL + pdb）
-        Copy-Item "artifacts\Release\*" release\ -Recurse -Force
-        $embedded = Get-ChildItem "src\embedded\*.m2" -ErrorAction SilentlyContinue
-        if ($embedded) {
-          mkdir release\maps -Force
-          # 侧挂地图缓存：运行时从 exe 同级的 maps/ 目录读取
-          Copy-Item "src\embedded\*.m2" release\maps\
+
+        # 不假设解包层级：artifact 内容来自 build/bin/Release，
+        # download-artifact 展开后的前缀可能带也可能不带 bin/Release。
+        # 直接定位 CNCS.exe 所在目录再整体复制，避免
+        # "Cannot find path ...artifacts\Release" 这类脆弱失败。
+        $exe = Get-ChildItem -Path artifacts -Recurse -Filter CNCS.exe |
+                 Select-Object -First 1
+        if (-not $exe) {
+          Write-Error "artifact 中未找到 CNCS.exe"
+          Get-ChildItem -Path artifacts -Recurse | Select-Object FullName
+          exit 1
         }
+        $outDir = $exe.Directory.FullName
+        Write-Host "Packaging from: $outDir"
+        Get-ChildItem -Path $outDir | Select-Object Name, Length | Format-Table -AutoSize
+
+        Copy-Item (Join-Path $outDir '*') release\ -Recurse -Force
+
+        $embedded = @(Get-ChildItem "src\embedded\*.m2" -ErrorAction SilentlyContinue)
+        if ($embedded.Count -gt 0) {
+          mkdir release\maps -Force
+          Copy-Item "src\embedded\*.m2" release\maps\
+          Write-Host "Copied $($embedded.Count) embedded map cache file(s)"
+        }
+
+        Write-Host "Release content:"
+        Get-ChildItem release -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
